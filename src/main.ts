@@ -1120,7 +1120,7 @@ document.addEventListener('click', (e) => {
   }
 })
 
-// ===== Muse向け iframe 埋め込みコード生成モーダル =====
+// ===== 共有・iframe 埋め込みコード生成モーダル =====
 const embedModal = document.getElementById('embed-modal') as HTMLElement
 const embedPreview = document.getElementById('embed-code-preview') as HTMLElement
 const optHoldings = document.getElementById('opt-embed-holdings') as HTMLInputElement
