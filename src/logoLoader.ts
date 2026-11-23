@@ -10,23 +10,40 @@ export interface LogoEntry {
   attemptIndex: number
 }
 
+function normalizeDomain(domain?: string): string {
+  if (!domain) return ''
+  return domain.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase()
+}
+
 /**
  * ロゴURLの多段フォールバック候補リストを生成する。
+ * 日本株ではティッカー指定より企業ドメイン指定の方が圧倒的にヒット率が高いため、
+ * ドメイン優先フォールバックを組み込む。
+ *
  * 優先順:
- *   1) node.logo（既定: logoapi.sh）
- *   2) node.logoFallbacks（JSON側で明示指定された予備URL）
- *   3) LogoKit Stock API（https://img.logokit.com/ticker/{code}.T?token=...）
+ *   1) node.logo（既定: https://logoapi.sh/ticker/{code}.svg）
+ *   2) https://logoapi.sh/{domain}（日本株大手でも高ヒット率・無料）
+ *   3) node.logoFallbacks（JSON側で明示指定された予備URL）
  *   4) LogoKit Domain API（https://img.logokit.com/{domain}?token=...）
- *   5) すべて失敗時は UI 側で略称イニシャルバッジを表示
+ *   5) LogoKit Stock API（https://img.logokit.com/ticker/{code}.T?token=...）
+ *   6) すべて失敗時は UI 側で略称イニシャルバッジを表示
  */
-export function buildLogoCandidates(node: Pick<NetNode, 'code' | 'logo' | 'logoFallbacks' | 'domain'>, logokitToken: string): string[] {
+export function buildLogoCandidates(
+  node: Pick<NetNode, 'code' | 'logo' | 'logoFallbacks' | 'domain'>,
+  logokitToken: string,
+): string[] {
   const urls: string[] = []
   const pushUnique = (u?: string) => {
     const trimmed = u?.trim()
     if (trimmed && !urls.includes(trimmed)) urls.push(trimmed)
   }
 
+  const cleanDomain = normalizeDomain(node.domain)
+
   pushUnique(node.logo)
+  if (cleanDomain) {
+    pushUnique(`https://logoapi.sh/${encodeURIComponent(cleanDomain)}`)
+  }
   if (node.logoFallbacks) {
     for (const fb of node.logoFallbacks) pushUnique(fb)
   }
@@ -34,15 +51,12 @@ export function buildLogoCandidates(node: Pick<NetNode, 'code' | 'logo' | 'logoF
   const token = logokitToken.trim()
   if (token) {
     const encodedToken = encodeURIComponent(token)
+    if (cleanDomain) {
+      pushUnique(`https://img.logokit.com/${encodeURIComponent(cleanDomain)}?token=${encodedToken}`)
+    }
     if (node.code) {
       const symbol = node.code.includes('.') ? node.code : `${node.code}.T`
       pushUnique(`https://img.logokit.com/ticker/${encodeURIComponent(symbol)}?token=${encodedToken}`)
-    }
-    if (node.domain) {
-      const cleanDomain = node.domain.replace(/^https?:\/\//i, '').replace(/\/.*$/, '')
-      if (cleanDomain) {
-        pushUnique(`https://img.logokit.com/${encodeURIComponent(cleanDomain)}?token=${encodedToken}`)
-      }
     }
   }
 
@@ -64,7 +78,9 @@ export class LogoCache {
 
     const candidates = buildLogoCandidates(node, this.logokitToken)
     const img = new Image()
-    img.crossOrigin = 'anonymous'
+    // 2Dキャンバスへの drawImage のみを行いピクセル読出し（getImageData/toDataURL）は行わないため、
+    // crossOrigin を設定せず LogoKit 等 CORS ヘッダ非付与CDNの画像も正常表示させる
+    img.referrerPolicy = 'strict-origin-when-cross-origin'
 
     const entry: LogoEntry = {
       img,
@@ -119,6 +135,7 @@ export class LogoCache {
     let idx = 0
     const img = new Image()
     img.alt = fallbackText
+    img.referrerPolicy = 'strict-origin-when-cross-origin'
     img.className = 'w-full h-full object-contain bg-white'
 
     const tryNext = () => {
