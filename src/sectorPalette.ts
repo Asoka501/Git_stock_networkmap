@@ -21,12 +21,15 @@ export const SECTOR_ORDER = [
 
 const LEGACY_SECTOR_MAP: Record<string, string> = {
   '消費・医薬': '消費・医薬・食品',
+  '倉庫・運輸関連': '倉庫・運輸',
+  '外国法人・組合': 'その他',
 }
 
 export function normalizeSectorName(sector: string): string {
   const trimmed = (sector || '').trim()
   if (!trimmed) return 'その他'
-  return LEGACY_SECTOR_MAP[trimmed] ?? trimmed
+  const mapped = LEGACY_SECTOR_MAP[trimmed] ?? trimmed
+  return SECTORS[mapped] ? mapped : 'その他'
 }
 
 /** 11カテゴリ基本パレット（ズームアウト時・凡例表示） */
@@ -87,6 +90,7 @@ export const SUB_SECTOR_COLORS: Record<string, string> = {
   '海運業': '#fde047',
   '空運業': '#fef9c3',
   '倉庫・運輸関連業': '#fde68a',
+  '倉庫・運輸関連': '#fde68a',
   // 10. サービス業（白・ライトグレー系）
   'サービス業': '#e2e8f0',
 }

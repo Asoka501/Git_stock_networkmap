@@ -160,11 +160,15 @@ def is_excluded_counterparty(name: str) -> bool:
 
 
 def map_sector_group(sector33: str) -> str:
-    """JPX 33業種を表示用の集約セクター名へ変換する。"""
+    """JPX 33業種（およびEDINET表記ゆれ）を表示用の11カテゴリ名へ変換する。"""
     cleaned = unicodedata.normalize("NFKC", sector33 or "").strip()
     if not cleaned or cleaned == "-":
         return "その他"
-    return SECTOR33_TO_GROUP.get(cleaned, cleaned)
+    if cleaned in SECTOR33_TO_GROUP:
+        return SECTOR33_TO_GROUP[cleaned]
+    if f"{cleaned}業" in SECTOR33_TO_GROUP:
+        return SECTOR33_TO_GROUP[f"{cleaned}業"]
+    return "その他"
 
 
 def clean_sec_code(raw: str | int | float | None) -> str:
