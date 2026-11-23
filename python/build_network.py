@@ -245,6 +245,9 @@ def build_from_extracted(
             if not t_code:
                 continue
             amount_m = rel.get("amount_million_yen")
+            # 旧パーサキャッシュ由来の異常値（単一保有5兆円超＝株数・千円混入等）は除外して安全表示
+            if amount_m is not None and amount_m > 5_000_000:
+                amount_m = None
             purpose = str(rel.get("purpose") or "").strip()
             detail_parts = []
             if amount_m:

@@ -561,6 +561,7 @@ async function renderInspector(node: NetNode) {
   } else {
     connected.forEach(({ peer, link }) => {
       const pStyle = getSectorStyle(peer.sector)
+      const pAccent = getNodeSectorColor(peer.sector, peer.subSector, state.zoomSubSectorMode)
       const item = document.createElement('button')
       item.type = 'button'
       item.className =
@@ -575,7 +576,8 @@ async function renderInspector(node: NetNode) {
       item.innerHTML = `
         <div class="flex items-center justify-between gap-2">
           <div class="flex items-center gap-2 min-w-0">
-            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${pStyle.color}"></span>
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${pAccent}"></span>
+            <span class="peer-logo-slot w-5 h-5 rounded-md overflow-hidden shrink-0 flex items-center justify-center text-[9px] font-bold text-slate-950 border border-slate-700/60" style="background:linear-gradient(135deg, ${pAccent}, #e2e8f0)"></span>
             <span class="text-xs font-semibold text-slate-100 truncate group-hover:text-sky-300">${holdStar}${escapeHtml(peer.name)}</span>
           </div>
           <span class="text-[11px] font-mono font-bold text-sky-300 shrink-0">${link.value}</span>
@@ -587,6 +589,10 @@ async function renderInspector(node: NetNode) {
         <div class="mt-1.5 h-1 w-full bg-slate-800 rounded-full overflow-hidden">
           <div class="h-full rounded-full" style="width:${Math.min(100, link.value)}%;background:${pStyle.color};"></div>
         </div>`
+      const peerLogoSlot = item.querySelector('.peer-logo-slot') as HTMLElement | null
+      if (peerLogoSlot) {
+        logoCache.renderInto(peerLogoSlot, peer, { lazy: true })
+      }
       item.addEventListener('click', () => selectNode(peer, true))
       listEl.appendChild(item)
     })
