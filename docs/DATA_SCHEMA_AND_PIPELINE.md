@@ -120,7 +120,7 @@
 | **GitHub リポジトリ & Pages** | コード・仕様書・配信JSON（`public/data/`）の正本と静的配信 | 無料 | 生ZIP・`data/cache/` は `.gitignore` で除外 |
 | **GitHub Actions** | 毎週日曜の自動差分更新（`update-data.yml`）＆ Pages 自動デプロイ（`pages.yml`） | 無料 | `concurrency` 制御で多重実行を防止、`actions/cache@v4` で解析済みキャッシュを継続引き継ぎ |
 | **名寄せ例外辞書** | [data/alias_overrides.json](../data/alias_overrides.json)（41件の営業子会社・略称マップ） | 無料 | 人間がJSONへ1行追記→PRマージするだけで即反映 |
-| **Google Sheets（任意補助）** | `Git_stock_networkmap 運用管理シート`（`batch_status` 上位25ハブ、`alias_overrides` メモ） | 無料 | 運用状況の可視化補助用。シートがなくても自動バッチ・Webアプリは100%自立稼働 |
+| **Google Sheets（任意補助）** | `Git_stock_networkmap 運用管理シート`（`batch_status` 上位100ハブ、`alias_overrides` メモ） | 無料 | 運用状況の可視化補助用。シートがなくても自動バッチ・Webアプリは100%自立稼働 |
 | **`data/llm_relations.json`** | 手動や外部調査で特定エッジを追加したい場合のみ使う任意ファイル | 無料 | 空配列 `[]` のままで一切問題なし。保守必須ではない |
 
 ### 4.2 必要なシークレット（GitHub Repository Secrets）

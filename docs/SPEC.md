@@ -46,7 +46,7 @@ flowchart TB
 
   subgraph Ops["軽量な人間保守・運用補助（任意）"]
     ALIAS["data/alias_overrides.json<br/>(営業子会社・略称の名寄せ辞書)"]
-    SHEETS["Google Sheets 運用管理シート<br/>(batch_status / 上位25ハブ確認)"]
+    SHEETS["Google Sheets 運用管理シート<br/>(batch_status / 上位100ハブ確認)"]
     OPT["data/llm_relations.json<br/>(完全任意の手動・追加関係枠 / 空でも稼働)"]
   end
 
