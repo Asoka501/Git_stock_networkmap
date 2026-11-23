@@ -98,29 +98,31 @@ npm run build    # 型チェック＋本番ビルド（dist/ へ出力）
 npm run preview  # ビルド結果の確認
 ```
 
-## Python側の使い方
+## Python側の使い方（全上場パイプライン）
 
-事前にEDINETでSubscription-Keyを発行し、環境変数に設定します。キーをコードやリポジトリに書き込むことはありません。
+事前にEDINETでSubscription-Keyを発行し、環境変数（または自動更新時は GitHub Actions Secrets の `EDINET_API_KEY`）に設定します。キーをコードやリポジトリに書き込むことはありません。
 
 ```bash
 pip install -r python/requirements.txt
 export EDINET_API_KEY="<発行したSubscription-Key>"
 
-# 指定日に提出された有価証券報告書の一覧
-python python/edinet_client.py list --date 2025-06-27 --out documents.json
+# 接続確認
+python python/check_api.py
 
-# 書類のXBRL（ZIP）をダウンロード（data/raw/ 配下へ）
-python python/edinet_client.py download --doc-id S100XXXX --out-dir data/raw
+# 一括パイプライン（JPX/EDINETマスタ同期 → 有報差分取得・定型表＆本文共起抽出 → 時価総額補完 → public/data/ へ分割JSON出力）
+python python/run_pipeline.py --days 14 --max-downloads 120 --out-dir public/data
 
-# XBRLからセクション本文と主要な顧客関係を抽出
-python python/parse_xbrl.py --zip data/raw/S100XXXX.zip --out extracted.json
+# 初回バックフィル例（決算集中期を指定して段階取得）
+python python/run_pipeline.py --from 2025-06-20 --to 2025-06-30 --max-downloads 200 --out-dir public/data
 
-# 抽出結果をネットワークJSONへ整形
-python python/build_network.py --input extracted.json --out network.json
+# オフライン単体テスト（APIキー不要）
+python -m unittest discover -s python/tests -v
 
 # サンプルデータのネットワークJSONを出力（動作確認用）
 python python/build_network.py --sample --out network.json
 ```
+
+GitHub Actions（[.github/workflows/update-data.yml](.github/workflows/update-data.yml)）により、GitHub Secrets へ `EDINET_API_KEY` を登録すると毎週自動更新および手動バックフィル実行が可能になります。
 
 ## 格納方針
 

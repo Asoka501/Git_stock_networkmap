@@ -11,7 +11,9 @@ __pycache__/
 # Secrets / local config
 .env
 .env.*
+!.env.example
 
-# Raw EDINET downloads (生XBRLはリポジトリに入れない)
+# Raw EDINET downloads and intermediate caches (生XBRL・キャッシュはリポジトリに入れない)
 *.zip
 data/raw/
+data/cache/
