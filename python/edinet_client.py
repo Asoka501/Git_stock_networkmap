@@ -31,7 +31,7 @@ try:
 except ImportError:
     from python.company_master import clean_sec_code  # type: ignore
 
-BASE_URL = "https://disclosure.edinet-fsa.go.jp/api/v2"
+BASE_URL = "https://api.edinet-fsa.go.jp/api/v2"
 DEFAULT_DELAY_SEC = 0.35
 
 
@@ -53,11 +53,12 @@ def _request_with_retry(
     timeout: int,
     max_retries: int = 3,
 ) -> requests.Response:
-    headers = {"Subscription-Key": get_api_key()}
+    # EDINET API v2 公式仕様: Subscription-Key はクエリパラメータで渡す
+    query = {**params, "Subscription-Key": get_api_key()}
     last_exc: Exception | None = None
     for attempt in range(max_retries):
         try:
-            resp = requests.get(url, params=params, headers=headers, timeout=timeout)
+            resp = requests.get(url, params=query, timeout=timeout)
             if resp.status_code in (429, 500, 502, 503, 504):
                 wait = 2.0 * (attempt + 1)
                 print(
@@ -173,6 +174,9 @@ def download_xbrl(doc_id: str, out_dir: Path, timeout: int = 300) -> Path:
         params={"type": 1},
         timeout=timeout,
     )
+    content_type = (resp.headers.get("Content-Type") or "").lower()
+    if "application/json" in content_type or not resp.content.startswith(b"PK"):
+        raise RuntimeError(f"EDINET がZIP以外を返却しました (docID={doc_id}, content-type={content_type})")
     out_path.write_bytes(resp.content)
     return out_path
 
