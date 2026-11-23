@@ -1,10 +1,10 @@
 {
   "dataType": "live",
-  "updatedAt": "2026-11-23T12:41:36.417197+00:00",
+  "updatedAt": "2026-11-23T12:58:19.908029+00:00",
   "fiscalYear": "2026-03",
-  "nodeCount": 3018,
+  "nodeCount": 3076,
   "indexCount": 3840,
-  "linkCount": 20756,
+  "linkCount": 22401,
   "coreNodeCount": 180,
-  "coreLinkCount": 2040
+  "coreLinkCount": 2278
 }
