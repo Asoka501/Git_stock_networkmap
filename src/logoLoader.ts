@@ -119,23 +119,39 @@ export class LogoCache {
   }
 
   /**
-   * 詳細パネル用に独立した <img> 要素へ多段フォールバック付きでロゴを描画する。
+   * 詳細パネルおよび関係企業一覧用に独立した <img> 要素へ多段フォールバック付きでロゴを描画する。
+   * lazy=true のときは未キャッシュ銘柄の先行読み込みを避け、スクロール表示行のみ遅延取得する。
    */
-  renderInto(container: HTMLElement, node: NetNode): void {
+  renderInto(container: HTMLElement, node: NetNode, options: { lazy?: boolean } = {}): void {
     const fallbackText = node.logoText || node.code.slice(0, 2)
     container.innerHTML = ''
 
-    const cached = this.get(node)
-    if (cached.status === 'failed') {
+    const key = node.code || node.id
+    const cached = options.lazy ? this.cache.get(key) : this.get(node)
+    if (cached?.status === 'failed') {
       container.textContent = fallbackText
       return
     }
 
-    const urls = cached.resolvedUrl ? [cached.resolvedUrl] : [...cached.candidates]
+    const urls = cached?.resolvedUrl
+      ? [cached.resolvedUrl]
+      : cached
+        ? [...cached.candidates]
+        : buildLogoCandidates(node, this.logokitToken)
+
+    if (urls.length === 0) {
+      container.textContent = fallbackText
+      return
+    }
+
     let idx = 0
     const img = new Image()
     img.alt = fallbackText
     img.referrerPolicy = 'strict-origin-when-cross-origin'
+    if (options.lazy) {
+      img.loading = 'lazy'
+      img.decoding = 'async'
+    }
     img.className = 'w-full h-full object-contain bg-white'
 
     const tryNext = () => {
