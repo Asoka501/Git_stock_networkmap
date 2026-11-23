@@ -13,37 +13,105 @@
     <canvas id="logo-overlay"></canvas>
     <div id="hover-tooltip"></div>
 
-    <header class="fixed top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-      <div class="glass-panel pointer-events-auto rounded-2xl px-4 py-2.5 flex items-center gap-3">
-        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-slate-950 shadow-lg shadow-sky-500/20">
+    <!-- 遅延データ読込中インジケータ -->
+    <div id="loading-badge" class="hidden fixed top-16 left-1/2 -translate-x-1/2 z-30 glass-panel rounded-full px-3.5 py-1.5 text-xs text-sky-300 flex items-center gap-2 pointer-events-none">
+      <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+      <span id="loading-text">データを読み込み中...</span>
+    </div>
+
+    <header id="top-header" class="fixed top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      <div id="title-card" class="glass-panel pointer-events-auto rounded-2xl px-3.5 py-2 flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-slate-950 shadow-lg shadow-sky-500/20 shrink-0">
           <i data-lucide="network" class="w-4.5 h-4.5"></i>
         </div>
         <div>
           <div class="flex items-center gap-2">
             <h1 class="text-sm sm:text-base font-bold tracking-tight text-white">EDINET 企業関係 3Dネットワーク</h1>
-            <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-400/30">サンプルデータ</span>
+            <span id="data-status-badge" class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-400/30">サンプルデータ</span>
           </div>
           <p class="text-[11px] text-slate-400 hidden sm:block">ドラッグ回転・スクロール拡大で銘柄ロゴ表示・クリックで詳細フォーカス</p>
         </div>
       </div>
 
-      <div class="glass-panel pointer-events-auto rounded-2xl px-3 py-2 flex items-center gap-2">
+      <div class="glass-panel pointer-events-auto rounded-2xl px-2.5 py-1.5 flex items-center gap-1.5 flex-wrap max-w-full">
         <div class="relative">
-          <input id="search-input" type="text" placeholder="銘柄名・コード検索 (例: トヨタ)" autocomplete="off"
-            class="w-40 sm:w-52 bg-slate-900/80 border border-slate-700/70 rounded-xl px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-400" />
-          <div id="search-results" class="hidden absolute left-0 right-0 top-full mt-1.5 glass-panel rounded-xl overflow-hidden max-h-56 overflow-y-auto custom-scroll z-30"></div>
+          <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          <input id="search-input" type="text" placeholder="銘柄名・コード検索 (/)" autocomplete="off"
+            class="w-36 sm:w-48 bg-slate-900/80 border border-slate-700/70 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-400" />
+          <div id="search-results" class="hidden absolute left-0 right-0 top-full mt-1.5 glass-panel rounded-xl overflow-hidden max-h-60 overflow-y-auto custom-scroll z-30 min-w-[220px]"></div>
         </div>
-        <button id="btn-autorotate" type="button" class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-sky-500/20 text-sky-300 border border-sky-400/30 hover:bg-sky-500/30 transition">回転: ON</button>
-        <button id="btn-reset" type="button" class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800/80 text-slate-200 border border-slate-700/70 hover:bg-slate-700/80 transition">全体表示</button>
-        <button id="btn-json-modal" type="button" class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800/80 text-slate-200 border border-slate-700/70 hover:bg-slate-700/80 transition hidden sm:inline-flex">JSON読込</button>
-        <button id="btn-toggle-controls" type="button" class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800/80 text-slate-200 border border-slate-700/70 hover:bg-slate-700/80 transition md:hidden">設定</button>
+
+        <button id="btn-toggle-controls" type="button" title="フィルタ・表示設定を開く"
+          class="relative px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800/85 text-slate-200 border border-slate-700/70 hover:bg-slate-700/85 transition inline-flex items-center gap-1.5">
+          <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+          <span class="hidden sm:inline">フィルタ</span>
+          <span id="filter-badge" class="hidden min-w-[16px] h-4 px-1 rounded-full bg-sky-500 text-slate-950 text-[10px] font-bold inline-flex items-center justify-center"></span>
+        </button>
+
+        <button id="btn-autorotate" type="button" title="自動回転のON/OFF"
+          class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-sky-500/20 text-sky-300 border border-sky-400/30 hover:bg-sky-500/30 transition inline-flex items-center gap-1">
+          <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+          <span id="btn-autorotate-label" class="hidden md:inline">ON</span>
+        </button>
+
+        <button id="btn-reset" type="button" title="全体表示へリセット (R)"
+          class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800/85 text-slate-200 border border-slate-700/70 hover:bg-slate-700/85 transition inline-flex items-center gap-1">
+          <i data-lucide="locate-fixed" class="w-3.5 h-3.5"></i>
+          <span class="hidden md:inline">全体</span>
+        </button>
+
+        <button id="btn-fullscreen" type="button" title="全画面表示切替"
+          class="px-2 py-1.5 rounded-xl text-xs font-medium bg-slate-800/85 text-slate-200 border border-slate-700/70 hover:bg-slate-700/85 transition inline-flex items-center">
+          <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+        </button>
+
+        <button id="btn-embed-code" type="button" title="Muse用iframe埋め込みコードを表示"
+          class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-indigo-500/20 text-indigo-200 border border-indigo-400/35 hover:bg-indigo-500/30 transition hidden sm:inline-flex items-center gap-1">
+          <i data-lucide="code-2" class="w-3.5 h-3.5"></i>
+          <span>埋め込み</span>
+        </button>
+
+        <button id="btn-json-modal" type="button" title="整形済みJSONを読み込む"
+          class="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800/85 text-slate-200 border border-slate-700/70 hover:bg-slate-700/85 transition hidden sm:inline-flex items-center gap-1">
+          <i data-lucide="file-json" class="w-3.5 h-3.5"></i>
+          <span class="hidden lg:inline">JSON</span>
+        </button>
       </div>
     </header>
 
-    <aside id="left-panel" class="fixed left-3 top-20 z-10 w-64 max-h-[calc(100vh-6.5rem)] overflow-y-auto custom-scroll glass-panel rounded-2xl p-3.5 space-y-4 hidden md:block">
+    <!-- 左フィルタドロワー（?embed=1 時は初期折りたたみ） -->
+    <aside id="left-panel" class="fixed left-3 top-20 z-20 w-64 max-h-[calc(100vh-6rem)] overflow-y-auto custom-scroll glass-panel rounded-2xl p-3.5 space-y-3.5 hidden">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+        <span class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+          <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-sky-400"></i>
+          表示・フィルタ設定
+        </span>
+        <button id="btn-close-controls" type="button" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800/70 transition text-xs" aria-label="設定を閉じる">✕</button>
+      </div>
+
+      <!-- 表示スコープ切替（全上場規模＆保有銘柄連携向け） -->
+      <div id="scope-section">
+        <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+          <span>表示スコープ</span>
+          <span id="holdings-count-pill" class="hidden text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-400/30"></span>
+        </div>
+        <div id="scope-buttons" class="grid grid-cols-2 gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+          <button data-scope="core" type="button" class="scope-btn py-1.5 rounded-lg text-[11px] font-medium bg-sky-500 text-slate-950 transition">主要ハブ</button>
+          <button data-scope="all" type="button" class="scope-btn py-1.5 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white transition">全表示</button>
+          <button id="scope-btn-holdings" data-scope="holdings" type="button" class="scope-btn hidden py-1.5 rounded-lg text-[11px] font-medium text-amber-300 hover:text-amber-200 transition col-span-2">★ 保有銘柄の周辺</button>
+        </div>
+        <div id="hops-row" class="hidden mt-2 flex items-center justify-between text-[11px] text-slate-400">
+          <span>周辺表示の広さ</span>
+          <div class="inline-flex bg-slate-900/80 p-0.5 rounded-lg border border-slate-800">
+            <button data-hops="1" type="button" class="hops-btn px-2 py-0.5 rounded-md text-[10px] font-medium bg-sky-500 text-slate-950 transition">1ホップ</button>
+            <button data-hops="2" type="button" class="hops-btn px-2 py-0.5 rounded-md text-[10px] font-medium text-slate-300 hover:text-white transition">2ホップ</button>
+          </div>
+        </div>
+      </div>
+
       <div>
-        <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">ノードサイズ基準</div>
-        <div class="grid grid-cols-2 gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">ノードサイズ基準</div>
+        <div class="grid grid-cols-2 gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
           <button id="metric-mcap" type="button" class="py-1.5 rounded-lg text-xs font-medium bg-sky-500 text-slate-950 transition">時価総額</button>
           <button id="metric-cap" type="button" class="py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition">資本金</button>
         </div>
@@ -60,54 +128,88 @@
         </div>
       </div>
 
+      <!-- 関係種別フィルタ -->
+      <div id="kind-section">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">関係種別</span>
+          <button id="btn-all-kinds" type="button" class="text-[10px] text-sky-400 hover:underline">全選択</button>
+        </div>
+        <div id="kind-list" class="flex flex-wrap gap-1"></div>
+      </div>
+
+      <!-- 出典フィルタ（定型表 / LLM が存在する実データ時に自動表示） -->
+      <div id="source-filter-section" class="hidden">
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">データ出典</div>
+        <div class="grid grid-cols-2 gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+          <button id="source-all" type="button" class="py-1 rounded-lg text-[11px] font-medium bg-sky-500 text-slate-950 transition">定型表＋LLM</button>
+          <button id="source-table" type="button" class="py-1 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white transition">定型表のみ</button>
+        </div>
+      </div>
+
       <div>
-        <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center justify-between mb-1.5">
           <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">セクター色分け</span>
           <button id="btn-all-sectors" type="button" class="text-[10px] text-sky-400 hover:underline">全選択</button>
         </div>
         <div id="sector-list" class="space-y-1"></div>
       </div>
 
-      <div class="pt-2.5 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-center">
-        <div class="bg-slate-900/70 rounded-xl py-2 px-2">
-          <div class="text-[10px] text-slate-400">表示企業</div>
-          <div id="stat-nodes" class="text-sm font-bold text-white font-mono">-</div>
+      <div class="pt-2.5 border-t border-slate-800/80 space-y-2">
+        <div class="grid grid-cols-2 gap-2 text-center">
+          <div class="bg-slate-900/70 rounded-xl py-1.5 px-2">
+            <div class="text-[10px] text-slate-400">表示企業</div>
+            <div id="stat-nodes" class="text-sm font-bold text-white font-mono">-</div>
+          </div>
+          <div class="bg-slate-900/70 rounded-xl py-1.5 px-2">
+            <div class="text-[10px] text-slate-400">関係エッジ</div>
+            <div id="stat-links" class="text-sm font-bold text-sky-300 font-mono">-</div>
+          </div>
         </div>
-        <div class="bg-slate-900/70 rounded-xl py-2 px-2">
-          <div class="text-[10px] text-slate-400">関係エッジ</div>
-          <div id="stat-links" class="text-sm font-bold text-sky-300 font-mono">-</div>
-        </div>
+        <div id="stat-meta-note" class="text-[10px] text-slate-500 text-center"></div>
       </div>
     </aside>
 
-    <aside id="inspector-panel" class="fixed right-3 top-20 z-20 w-72 sm:w-80 max-h-[calc(100vh-6.5rem)] overflow-y-auto custom-scroll glass-panel rounded-2xl p-4 hidden">
+    <!-- 右詳細インスペクタ（狭いiframeでは自動で下部シート配置） -->
+    <aside id="inspector-panel" class="fixed right-3 top-20 z-20 w-72 sm:w-80 max-h-[calc(100vh-6rem)] overflow-y-auto custom-scroll glass-panel rounded-2xl p-4 hidden">
       <div class="flex items-start justify-between gap-2 pb-3 border-b border-slate-800">
-        <div class="flex items-center gap-2.5">
+        <div class="flex items-center gap-2.5 min-w-0">
           <div id="ins-logo" class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center font-bold text-sm text-slate-950 shadow-md shrink-0"></div>
-          <div>
-            <div class="flex items-center gap-1.5">
+          <div class="min-w-0">
+            <div class="flex items-center flex-wrap gap-1">
               <span id="ins-code" class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300"></span>
-              <span id="ins-sector" class="text-[10px] font-medium px-2 py-0.5 rounded-full"></span>
+              <span id="ins-holding-badge" class="hidden text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40">★ 保有</span>
+              <span id="ins-market" class="hidden text-[10px] px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300"></span>
+              <span id="ins-sector" class="text-[10px] font-medium px-2 py-0.5 rounded-full truncate max-w-[140px]"></span>
             </div>
-            <h2 id="ins-name" class="text-base font-bold text-white mt-0.5"></h2>
+            <h2 id="ins-name" class="text-base font-bold text-white mt-0.5 truncate"></h2>
           </div>
         </div>
-        <button id="btn-close-inspector" type="button" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800/70 transition text-sm" aria-label="閉じる">✕</button>
+        <button id="btn-close-inspector" type="button" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800/70 transition text-sm shrink-0" aria-label="閉じる">✕</button>
       </div>
 
-      <div class="grid grid-cols-2 gap-2 my-3">
+      <!-- 探索アクション -->
+      <div class="grid grid-cols-2 gap-1.5 my-2.5">
+        <button id="btn-focus-subgraph" type="button" class="py-1.5 px-2 rounded-xl text-[11px] font-medium bg-sky-500/15 text-sky-300 border border-sky-400/30 hover:bg-sky-500/25 transition">
+          この銘柄周辺に絞る
+        </button>
+        <button id="btn-expand-hop" type="button" class="py-1.5 px-2 rounded-xl text-[11px] font-medium bg-slate-800/80 text-slate-200 border border-slate-700/70 hover:bg-slate-700/80 transition">
+          さらに1ホップ広げる
+        </button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 my-2.5">
         <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5">
-          <div class="text-[10px] text-slate-400">時価総額（サンプル値）</div>
+          <div id="ins-mcap-label" class="text-[10px] text-slate-400">時価総額</div>
           <div id="ins-mcap" class="text-sm font-bold text-white font-mono mt-0.5"></div>
         </div>
         <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5">
-          <div class="text-[10px] text-slate-400">資本金（サンプル値）</div>
+          <div id="ins-cap-label" class="text-[10px] text-slate-400">資本金</div>
           <div id="ins-cap" class="text-sm font-bold text-slate-200 font-mono mt-0.5"></div>
         </div>
       </div>
 
       <div class="bg-slate-900/70 border border-slate-800/90 rounded-xl p-3 mb-3">
-        <div class="text-[10px] font-semibold text-sky-400 mb-1">有報テキスト抽出イメージ（サンプル）</div>
+        <div id="ins-excerpt-label" class="text-[10px] font-semibold text-sky-400 mb-1">有報テキスト抽出</div>
         <p id="ins-excerpt" class="text-xs text-slate-300 leading-relaxed"></p>
       </div>
 
@@ -120,14 +222,47 @@
       </div>
     </aside>
 
-    <div class="fixed bottom-3 left-1/2 -translate-x-1/2 z-10 glass-panel rounded-full px-4 py-1.5 text-[11px] text-slate-300 pointer-events-none flex items-center gap-3 whitespace-nowrap">
-      <span>左ドラッグ: 回転</span>
+    <div id="bottom-hint" class="fixed bottom-3 left-1/2 -translate-x-1/2 z-10 glass-panel rounded-full px-3.5 py-1 text-[11px] text-slate-300 pointer-events-none flex items-center gap-2.5 whitespace-nowrap">
+      <span>ドラッグ: 回転</span>
       <span class="text-slate-600">|</span>
-      <span>ホイール: 拡大（ロゴ表示）</span>
+      <span>ホイール: 拡大</span>
       <span class="text-slate-600 hidden sm:inline">|</span>
-      <span class="hidden sm:inline">ノードクリック: 関係強調</span>
+      <span class="hidden sm:inline">クリック: 関係強調</span>
     </div>
 
+    <!-- Muse向け iframe 埋め込みコード生成モーダル -->
+    <div id="embed-modal" class="fixed inset-0 z-40 bg-slate-950/75 backdrop-blur-sm hidden items-center justify-center p-4">
+      <div class="glass-panel rounded-2xl w-full max-w-lg p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i data-lucide="code-2" class="w-4 h-4 text-indigo-400"></i>
+            Muse アプリ用 iframe 埋め込みコード
+          </h3>
+          <button id="btn-close-embed-modal" type="button" class="text-slate-400 hover:text-white text-sm px-2 py-1">✕</button>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          そのまま貼るだけでスリムUIで埋め込めます。任意で保有銘柄コード（<code class="text-sky-300">holdings</code>）や初期フォーカス（<code class="text-sky-300">focus</code>）も渡せます。
+        </p>
+        <div class="flex flex-wrap gap-3 text-xs text-slate-300">
+          <label class="inline-flex items-center gap-1.5 cursor-pointer">
+            <input id="opt-embed-holdings" type="checkbox" class="accent-sky-400" />
+            <span>保有銘柄連携の例を含める</span>
+          </label>
+          <label class="inline-flex items-center gap-1.5 cursor-pointer">
+            <input id="opt-embed-focus" type="checkbox" class="accent-sky-400" />
+            <span>選択中銘柄を初期フォーカス</span>
+          </label>
+        </div>
+        <pre id="embed-code-preview" class="w-full bg-slate-950/90 border border-slate-700/80 rounded-xl p-3 text-[11px] font-mono text-sky-200 overflow-x-auto select-all whitespace-pre"></pre>
+        <div class="flex items-center justify-between gap-2">
+          <a id="btn-preview-embed" href="?embed=1" target="_blank" rel="noopener noreferrer"
+            class="text-xs text-sky-400 hover:underline">スリムモードを別タブでプレビュー ↗</a>
+          <button id="btn-copy-embed" type="button" class="px-4 py-1.5 rounded-xl text-xs font-semibold bg-sky-500 text-slate-950 hover:bg-sky-400 transition">コードをコピー</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- JSON読込モーダル -->
     <div id="json-modal" class="fixed inset-0 z-40 bg-slate-950/75 backdrop-blur-sm hidden items-center justify-center p-4">
       <div class="glass-panel rounded-2xl w-full max-w-lg p-5 space-y-3">
         <div class="flex items-center justify-between">
@@ -135,7 +270,7 @@
           <button id="btn-close-modal" type="button" class="text-slate-400 hover:text-white text-sm px-2 py-1">✕</button>
         </div>
         <p class="text-xs text-slate-400 leading-relaxed">
-          Python側で整形した <code class="text-sky-300">{ "nodes": [...], "links": [...] }</code> 形式のJSONを貼り付けると、即座に3Dグラフへ反映できます。スキーマは README を参照してください。
+          Python側で整形した <code class="text-sky-300">{ "nodes": [...], "links": [...] }</code> 形式のJSONを貼り付けると、即座に3Dグラフへ反映できます。スキーマは README / docs を参照してください。
         </p>
         <textarea id="json-input" rows="8" class="w-full bg-slate-950/90 border border-slate-700 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-400" placeholder='{"nodes": [{"id": "7203", "code": "7203", "name": "トヨタ自動車", "sector": "自動車・モビリティ", "marketCap": 48, "capital": 0.64, "logo": "https://logoapi.sh/ticker/7203.svg"}], "links": [{"source": "7203", "target": "6902", "value": 98, "kind": "主要顧客・供給"}]}'></textarea>
         <div id="json-error" class="text-xs text-rose-400 hidden"></div>
