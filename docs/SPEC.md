@@ -19,8 +19,8 @@ EDINETの有価証券報告書（有報）から日本の上場企業間のつ�
 | **Muse連携レベル** | 単体で完結する独立 `iframe` を基本としつつ、任意の **URLクエリパラメータ**（`?embed=1`, `?focus=...`, `?holdings=...` 等）で保有銘柄ハイライト・初期フォーカス連携も可能にする |
 | **埋め込みUI方針** | スリムUIを徹底しつつ全機能（検索・セクター絞込・サイズ切替・関係値スライダー・詳細パネル）を維持。さらに利便性を高めるUX改善（関係種別フィルタ、保有銘柄ハイライト、全画面切替等）を追加 |
 | **対象銘柄規模** | 東証プライム〜全上場企業（約1,600〜3,800社）を最初から前提に設計。初期表示はコアハブ／保有銘柄周辺（1〜2ホップ）に絞り、検索で全上場企業へジャンプ可能にする |
-| **関係性・抽出方式** | **定型表**（主要な顧客・政策保有株式・大株主）のルールベース自動抽出 ＋ **LLM本文テキスト抽出**（提携・事業等のリスク・供給網）のハイブリッド構成 |
-| **データ管理・基盤** | GASは不使用。**GitHub Pages（配信）＋ GitHub Actions（Python自動バッチ）＋ 無料データソース（EDINET / JPX / yfinance / Gemini無料枠）** を中核とし、Google Sheets／Driveは軽量な運用補助（名寄せ例外辞書・エラー確認・大容量キャッシュ退避）に限定 |
+| **関係性・抽出方式** | **定型表**（主要な顧客・政策保有株式・大株主）のルールベース自動抽出 ＋ **ローカルPython企業名共起抽出**（API不要・自動）＋ 必要に応じた **AI Pro（Antigravity/Gemini）オンデマンドLLM本文抽出** のハイブリッド構成（外部Gemini APIキー不使用） |
+| **データ管理・基盤** | GASは不使用。**GitHub Pages（配信）＋ GitHub Actions（Python自動バッチ）＋ 無料データソース（EDINET / JPX / yfinance / LogoKitフォールバック）** を中核とし、Google Sheets／Driveは軽量な運用補助（名寄せ例外辞書・エラー確認・大容量キャッシュ退避）に限定 |
 | **開発・Git運用** | 仕様書PRで合意後、機能ごとにブランチ＆PRを切って段階的にマージする |
 
 ---
@@ -33,14 +33,18 @@ flowchart TB
     EDINET["EDINET API v2<br/>(有報 iXBRL / コードリスト)"]
     JPX["JPX公式<br/>(上場銘柄一覧・業種・市場区分)"]
     YF["yfinance 等<br/>(時価総額・株価指標)"]
-    GEMINI["Gemini API 無料枠<br/>(本文テキスト関係抽出)"]
+    LOGOKIT["logoapi.sh + LogoKit<br/>(銘柄ロゴ自動フォールバック)"]
   end
 
-  subgraph Pipeline["自動バッチ (Python / GitHub Actions 無料枠)"]
+  subgraph Pipeline["自動バッチ (Python / GitHub Actions 無料枠・API課金ゼロ)"]
     FETCH["1. 差分取得<br/>edinet_client.py"]
-    PARSE["2. iXBRL解析<br/>定型表抽出 + 本文抽出"]
-    LLM["3. LLM抽出<br/>docIDキャッシュ付き"]
+    PARSE["2. iXBRL解析<br/>定型表抽出 + 本文テキスト抽出"]
+    NLP["3. ローカル本文解析<br/>企業名共起・キーワード抽出"]
     RESOLVE["4. 名寄せ・スコア統合<br/>build_network.py"]
+  end
+
+  subgraph OnDemand["オンデマンド深掘り (既存 AI Pro 契約内・追加APIキー不要)"]
+    AIPRO["Antigravity / Gemini<br/>注目企業・決算期の本文LLM抽出<br/>→ data/llm_relations.json へ追記"]
   end
 
   subgraph Ops["軽量管理・退避 (任意運用)"]
@@ -58,15 +62,14 @@ flowchart TB
   end
 
   EDINET --> FETCH --> PARSE
-  PARSE --> LLM
-  GEMINI --> LLM
-  PARSE --> RESOLVE
-  LLM --> RESOLVE
+  PARSE --> NLP --> RESOLVE
+  PARSE -.-> AIPRO -.-> RESOLVE
   JPX --> RESOLVE
   YF --> RESOLVE
   SHEETS <--> RESOLVE
   FETCH -.-> DRIVE
   RESOLVE --> STATIC --> APP --> MUSE
+  LOGOKIT -.-> APP
 ```
 
 ### GASを使わない理由
@@ -78,19 +81,19 @@ Google Apps Script（GAS）は1回の実行時間が最大6分と短く、3,800�
 
 | Phase | ブランチ例 | 主な成果物 | ゴール |
 | --- | --- | --- | --- |
-| **Phase 1（本PR）** | `docs/architecture-spec` | `docs/` 配下の仕様書一式 | 全体設計・スキーマ・UI・運用方針の合意 |
-| **Phase 2（埋め込み最優先）** | `feat/embed-slim-ui` | `?embed=1` スリムUI、`?focus`/`?holdings`/`?hops` 対応、関係種別フィルタ、分割JSONローダ（サンプル互換）、全画面切替 | **Museアプリへiframe埋め込み＆実画面テスト完了** |
-| **Phase 3（全上場・定型表パイプライン）** | `feat/edinet-full-pipeline` | JPX/EDINETマスタ自動取得、iXBRL定型表パーサ（主要顧客・政策保有・大株主）、自動名寄せ、`yfinance`時価総額、分割JSON出力、GitHub Actions定期実行 | 全上場企業の実データ自動生成＆Pages配信 |
-| **Phase 4（LLM抽出・運用管理連携）** | `feat/llm-extraction-and-ops` | `docID` キャッシュ付きGemini本文抽出（無料枠レート制御）、Google Sheets例外辞書＆抽出エラーログ連携、出典フィルタUI強化 | 定型表＋LLMハイブリッドの完全自動運用 |
+| **Phase 1（完了）** | `docs/architecture-spec` | `docs/` 配下の仕様書一式 | 全体設計・スキーマ・UI・運用方針の合意 |
+| **Phase 2（埋め込み最優先）** | `feat/embed-slim-ui` | `?embed=1` スリムUI、`?focus`/`?holdings`/`?hops` 対応、関係種別フィルタ、LogoKitフォールバック、分割JSONローダ、全画面切替 | **Museアプリへiframe埋め込み＆実画面テスト完了** |
+| **Phase 3（全上場・自動バッチ）** | `feat/edinet-full-pipeline` | JPX/EDINETマスタ自動取得、iXBRL定型表パーサ（主要顧客・政策保有・大株主）、ローカル本文共起抽出、自動名寄せ、`yfinance`時価総額、分割JSON出力、GitHub Actions定期実行 | 全上場企業の実データ自動生成＆Pages配信 |
+| **Phase 4（AI Pro連携・運用管理）** | `feat/ai-pro-and-ops` | AI Pro（Antigravity/Gemini）向けオンデマンド本文抽出ワークフロー＆`llm_relations.json`マージ機構、Google Sheets例外辞書＆抽出エラーログ連携 | 定型表＋ローカル解析＋AI Pro深掘りの完全無料運用 |
 
 ---
 
 ## 5. セキュリティ・Git運用ルール
 
 1. **シークレット管理**
-   - `EDINET_API_KEY` および `GEMINI_API_KEY` は絶対にコードやリポジトリへ含めない。
-   - ローカル実行時は `.env`（`.gitignore` 対象）または環境変数から読み込む。
-   - 自動バッチ時は GitHub リポジトリの `Settings > Secrets and variables > Actions` へ登録する。
+   - `EDINET_API_KEY` は絶対にコードやリポジトリへ含めない（ローカルは `.env`、自動バッチは GitHub Actions Secrets へ登録）。
+   - LogoKit の公開クライアントトークン（`VITE_LOGOKIT_TOKEN`）を利用する場合は、LogoKit管理画面で配信ドメイン（`asoka501.github.io`）制限を設定したうえで GitHub Repository Variables へ登録する。
+   - 外部の `GEMINI_API_KEY` は発行・使用しない。
 2. **生XBRLの扱い**
    - ダウンロードした `.zip` や展開済み生XBRL（`data/raw/`）はリポジトリへコミットしない（`.gitignore` 済み）。
 3. **ブランチ・PR運用**

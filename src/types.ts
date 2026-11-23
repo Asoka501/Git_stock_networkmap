@@ -15,8 +15,12 @@ export interface NetNode extends NodeObject {
   marketCap: number
   /** 資本金（兆円） */
   capital: number
-  /** ロゴ画像URL（取得不可時はUI側で略称バッジへフォールバック） */
+  /** プライマリロゴ画像URL（取得不可時はLogoKit→略称バッジへ多段フォールバック） */
   logo: string
+  /** 取得失敗時に順に試す予備ロゴURL配列 */
+  logoFallbacks?: string[]
+  /** 企業公式サイトドメイン（例: toyota.co.jp。LogoKitドメイン検索用） */
+  domain?: string
   logoText?: string
   /** 東証市場区分（プライム / スタンダード / グロース 等） */
   market?: string
@@ -106,4 +110,6 @@ export interface EmbedConfig {
   rotate: boolean
   /** 外部JSON URL差し替え用（https:// または相対パスのみ許可） */
   dataUrl: string | null
+  /** LogoKit公開トークン（VITE_LOGOKIT_TOKEN または ?logokitToken=） */
+  logokitToken: string
 }

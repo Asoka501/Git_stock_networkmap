@@ -85,6 +85,11 @@ export function parseEmbedConfig(search: string = window.location.search): Embed
 
   const dataUrl = parseSafeDataUrl(params.get('data'))
 
+  const envToken = (
+    (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_LOGOKIT_TOKEN ?? ''
+  ).trim()
+  const logokitToken = (params.get('logokitToken')?.trim() || envToken).trim()
+
   return {
     embed,
     inIframe,
@@ -98,6 +103,7 @@ export function parseEmbedConfig(search: string = window.location.search): Embed
     sourceFilter,
     rotate,
     dataUrl,
+    logokitToken,
   }
 }
 

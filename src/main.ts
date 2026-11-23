@@ -21,6 +21,7 @@ import {
 } from './dataLoader'
 import { buildIframeSnippet, parseEmbedConfig } from './embedConfig'
 import { escapeHtml, extractCoreSubgraph, extractHopSubgraph, linkEndId } from './graphUtils'
+import { LogoCache } from './logoLoader'
 import type {
   DataMeta,
   IndexEntry,
@@ -543,22 +544,7 @@ async function renderInspector(node: NetNode) {
 
   const logoEl = document.getElementById('ins-logo') as HTMLElement
   logoEl.style.background = `linear-gradient(135deg, ${style.color}, #e2e8f0)`
-  logoEl.innerHTML = ''
-  const cachedLogo = logoImageCache.get(node.code)
-  if (cachedLogo?.status === 'failed') {
-    logoEl.textContent = node.logoText || node.code.slice(0, 2)
-  } else {
-    const img = new Image()
-    img.src = node.logo
-    img.alt = node.logoText ?? node.code
-    img.className = 'w-full h-full object-contain bg-white'
-    img.onerror = () => {
-      img.remove()
-      logoEl.textContent = node.logoText || node.code.slice(0, 2)
-      logoImageCache.set(node.code, { img, status: 'failed' })
-    }
-    logoEl.appendChild(img)
-  }
+  logoCache.renderInto(logoEl, node)
 
   ;(document.getElementById('ins-code') as HTMLElement).textContent = node.code
   document.getElementById('ins-holding-badge')?.classList.toggle('hidden', !isHolding(node.id))
@@ -707,27 +693,11 @@ function renderKindFilters() {
   })
 }
 
-// ===== ロゴ/ラベル オーバーレイ（ズーム連動LOD＋描画上限キャップ） =====
-type LogoStatus = 'loading' | 'loaded' | 'failed'
-const logoImageCache = new Map<string, { img: HTMLImageElement; status: LogoStatus }>()
+// ===== ロゴ/ラベル オーバーレイ（ズーム連動LOD＋LogoKit多段フォールバック＋描画上限キャップ） =====
+const logoCache = new LogoCache(config.logokitToken)
 
-function getLogoImage(node: NetNode): { img: HTMLImageElement; status: LogoStatus } {
-  let entry = logoImageCache.get(node.code)
-  if (!entry) {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    const newEntry: { img: HTMLImageElement; status: LogoStatus } = { img, status: 'loading' }
-    img.onload = () => {
-      newEntry.status = 'loaded'
-    }
-    img.onerror = () => {
-      newEntry.status = 'failed'
-    }
-    img.src = node.logo
-    logoImageCache.set(node.code, newEntry)
-    entry = newEntry
-  }
-  return entry
+function getLogoImage(node: NetNode) {
+  return logoCache.get(node)
 }
 
 function drawRoundRect(

@@ -27,6 +27,10 @@ export function normaliseData(raw: unknown): NetworkData {
       marketCap: Number(n.marketCap ?? 0),
       capital: Number(n.capital ?? 0),
       logo: String(n.logo ?? `https://logoapi.sh/ticker/${code}.svg`),
+      logoFallbacks: Array.isArray(n.logoFallbacks)
+        ? n.logoFallbacks.map((u) => String(u).trim()).filter(Boolean)
+        : undefined,
+      domain: n.domain ? String(n.domain).trim() : undefined,
       logoText: n.logoText ? String(n.logoText) : undefined,
       market: n.market ? String(n.market) : undefined,
       edinetCode: n.edinetCode ? String(n.edinetCode) : undefined,
