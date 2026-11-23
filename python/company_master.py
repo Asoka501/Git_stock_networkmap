@@ -428,6 +428,96 @@ def load_company_master(path: Path) -> dict[str, CompanyRecord]:
     return records
 
 
+# 一般名詞・カタカナ語として有報本文に頻出するため、法人表記を伴わない本文共起では除外する社名
+AMBIGUOUS_TEXT_SCAN_TERMS: frozenset[str] = frozenset(
+    {
+        "ランド",
+        "ポート",
+        "ベース",
+        "コロナ",
+        "イノベーション",
+        "キャリア",
+        "ビジョン",
+        "リズム",
+        "リード",
+        "キング",
+        "フリー",
+        "テイン",
+        "カバー",
+        "レント",
+        "システムインテグレータ",
+        "ソフト",
+        "ネットワーク",
+        "グローバル",
+        "ネクスト",
+        "フロンティア",
+        "デジタル",
+        "クラウド",
+        "テクノロジー",
+        "パートナーズ",
+        "デザイン",
+        "マーケット",
+        "プラットフォーム",
+        "マネジメント",
+        "ソリューション",
+        "サービス",
+        "メディア",
+        "コンサルティング",
+        "クリエイト",
+        "インベストメント",
+        "プロパティ",
+        "データ",
+        "リンク",
+        "コア",
+        "プラス",
+        "ステップ",
+        "グロース",
+        "バリュー",
+        "シェア",
+        "ケア",
+        "ライフ",
+        "ワーク",
+        "ホーム",
+        "ハウス",
+        "エステート",
+        "キャピタル",
+    }
+)
+
+_KATAKANA_ONLY_RE = re.compile(r"^[ァ-ヴー]+$")
+_ASCII_ONLY_RE = re.compile(r"^[A-Za-z0-9 .&\-]+$")
+
+
+def is_ambiguous_text_term(term: str) -> bool:
+    cleaned = unicodedata.normalize("NFKC", term or "").strip()
+    cleaned = re.sub(r"^(株式会社|㈱)|((株式会社|㈱))$", "", cleaned).strip()
+    return cleaned in AMBIGUOUS_TEXT_SCAN_TERMS
+
+
+def has_corporate_mention(term: str, text: str) -> bool:
+    """一般名詞と重複しやすい社名が、法人表記（株式会社・㈱・社）付きで言及されているか判定する。"""
+    cleaned = unicodedata.normalize("NFKC", term or "").strip()
+    cleaned = re.sub(r"^(株式会社|㈱)|((株式会社|㈱))$", "", cleaned).strip()
+    if not cleaned or not text:
+        return False
+    norm_text = unicodedata.normalize("NFKC", text)
+    esc = re.escape(cleaned)
+    return bool(re.search(rf"(?:株式会社|㈱|\(株\))\s*{esc}|{esc}\s*(?:株式会社|㈱|\(株\)|社(?![会]))", norm_text))
+
+
+def _compile_scan_pattern(term: str, *, ambiguous: bool) -> re.Pattern[str] | None:
+    esc = re.escape(term)
+    if ambiguous:
+        # 一般名詞と紛らわしい社名は法人表記を伴う場合のみ一致させる
+        return re.compile(rf"(?:株式会社|㈱|\(株\))\s*{esc}|{esc}\s*(?:株式会社|㈱|\(株\)|社(?![会]))")
+    if _KATAKANA_ONLY_RE.match(term):
+        # カタカナ社名は語中部分一致（例: ランド in ブランド、ポート in ポートフォリオ）を防止
+        return re.compile(rf"(?<![ァ-ヴー]){esc}(?![ァ-ヴー])")
+    if _ASCII_ONLY_RE.match(term):
+        return re.compile(rf"(?<![A-Za-z0-9]){esc}(?![A-Za-z0-9])")
+    return None
+
+
 class CompanyResolver:
     """企業名文字列 → 上場証券コード（4桁）の高速名寄せリゾルバ。"""
 
@@ -476,7 +566,7 @@ class CompanyResolver:
                     self._loose_index[loose] = c
 
         # 本文共起スキャン用の検索語一覧（長さ降順・3文字以上で誤爆を防止）
-        self._scan_terms: list[tuple[str, str]] = []
+        self._scan_terms: list[tuple[str, str, re.Pattern[str] | None, bool]] = []
         seen_terms: set[str] = set()
         for code, rec in records.items():
             for nm in [rec.name, *rec.aliases]:
@@ -484,8 +574,10 @@ class CompanyResolver:
                 cleaned = re.sub(r"^(株式会社|㈱)|((株式会社|㈱))$", "", cleaned).strip()
                 if len(cleaned) >= 3 and cleaned not in seen_terms and not is_excluded_counterparty(cleaned):
                     seen_terms.add(cleaned)
-                    self._scan_terms.append((cleaned, code))
-        self._scan_terms.sort(key=lambda pair: len(pair[0]), reverse=True)
+                    ambiguous = is_ambiguous_text_term(cleaned)
+                    pattern = _compile_scan_pattern(cleaned, ambiguous=ambiguous)
+                    self._scan_terms.append((cleaned, code, pattern, ambiguous))
+        self._scan_terms.sort(key=lambda item: len(item[0]), reverse=True)
 
     def resolve_edinet_code(self, edinet_code: str) -> str | None:
         return self._edinet_to_code.get((edinet_code or "").strip())
@@ -524,14 +616,17 @@ class CompanyResolver:
         found: list[tuple[str, str]] = []
         seen_codes: set[str] = {exclude_code} if exclude_code else set()
 
-        for term, code in self._scan_terms:
+        for term, code, pattern, _ambiguous in self._scan_terms:
             if code in seen_codes:
                 continue
-            if term in norm_text:
-                seen_codes.add(code)
-                found.append((code, term))
-                if len(found) >= limit:
-                    break
+            if term not in norm_text:
+                continue
+            if pattern is not None and not pattern.search(norm_text):
+                continue
+            seen_codes.add(code)
+            found.append((code, term))
+            if len(found) >= limit:
+                break
         return found
 
     def top_unmatched(self, n: int = 100) -> list[dict]:
