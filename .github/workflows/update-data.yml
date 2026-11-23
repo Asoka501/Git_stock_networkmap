@@ -23,9 +23,9 @@ on:
         required: false
         default: '150'
       market_cap_limit:
-        description: '1回で時価総額を更新する上限社数'
+        description: '1回で時価総額を更新する上限社数（ネットワーク出現企業を優先）'
         required: false
-        default: '300'
+        default: '500'
 
 permissions:
   contents: write
