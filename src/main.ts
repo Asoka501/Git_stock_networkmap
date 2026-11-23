@@ -43,6 +43,8 @@ if (config.embed) {
 }
 
 // ===== 状態 =====
+const ALL_SCOPE_DEFAULT_MIN_VALUE = 45
+const hasExplicitMinValueParam = new URLSearchParams(window.location.search).has('minValue')
 const initialSample = getSampleDataset()
 const state = {
   meta: initialSample.meta as DataMeta,
@@ -58,7 +60,11 @@ const state = {
   expandedSeeds: new Set<string>(),
 
   sizeMetric: config.metric as SizeMetric,
-  minValue: config.minValue,
+  minValue:
+    config.mode === 'all' && !hasExplicitMinValueParam && config.minValue < ALL_SCOPE_DEFAULT_MIN_VALUE
+      ? ALL_SCOPE_DEFAULT_MIN_VALUE
+      : config.minValue,
+  preAllMinValue: null as number | null,
   availableSectors: [] as string[],
   activeSectors: new Set<string>(),
   availableKinds: [] as string[],
@@ -74,7 +80,16 @@ const state = {
   highlightNodes: new Set<string>(),
   highlightLinks: new Set<NetLink>(),
   visibleNodeCount: 0,
+  graphRevision: 0,
+  engineActive: true,
 }
+
+// スライダー・フィルタ変更時に座標を保持し、グラフ全体が原点から再爆発するカタツキを防ぐ
+const nodePositionCache = new Map<string, { x: number; y: number; z: number }>()
+let overlayDirty = true
+let isPointerInteracting = false
+let wheelIdleTimer: number | null = null
+let overlayFrameCount = 0
 
 const container = document.getElementById('graph-container') as HTMLElement
 const overlayCanvas = document.getElementById('logo-overlay') as HTMLCanvasElement
@@ -96,6 +111,7 @@ function resizeOverlay(w: number, h: number) {
   overlayCanvas.style.width = viewportWidth + 'px'
   overlayCanvas.style.height = viewportHeight + 'px'
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  overlayDirty = true
 }
 resizeOverlay(viewportWidth, viewportHeight)
 
@@ -184,7 +200,7 @@ function formatLinkTooltip(link: NetLink): string {
   const nameOf = (id: string) => nodes.find((n) => n.id === id)?.name ?? id
   const srcTag =
     link.sourceType === 'llm'
-      ? ' <span style="color:#c4b5fd;font-size:10px;">[LLM抽出]</span>'
+      ? ' <span style="color:#c4b5fd;font-size:10px;">[本文抽出]</span>'
       : link.sourceType === 'table'
         ? ' <span style="color:#7dd3fc;font-size:10px;">[定型表]</span>'
         : ''
@@ -201,7 +217,11 @@ const graph = (new ForceGraph3D(container) as unknown as ForceGraph3DInstance<Ne
   .height(viewportHeight)
   .backgroundColor('#060a14')
   .showNavInfo(false)
-  .nodeResolution(20)
+  .nodeResolution(18)
+  .warmupTicks(20)
+  .cooldownTicks(110)
+  .d3AlphaDecay(0.028)
+  .d3VelocityDecay(0.32)
   .nodeVal((n) => getNodeVal(n as NetNode))
   .nodeColor((n) => getNodeColor(n as NetNode))
   .nodeOpacity(0.92)
@@ -218,8 +238,13 @@ const graph = (new ForceGraph3D(container) as unknown as ForceGraph3DInstance<Ne
   .onNodeHover((n) => {
     container.style.cursor = n ? 'pointer' : 'grab'
     state.hoverNodeId = n ? String((n as NetNode).id) : null
+    overlayDirty = true
   })
   .onBackgroundClick(() => clearSelection())
+  .onEngineStop(() => {
+    state.engineActive = false
+    overlayDirty = true
+  })
 
 graph.d3Force('charge')?.strength(-220)
 const linkForce = graph.d3Force('link') as unknown as { distance: (fn: (l: NetLink) => number) => void } | undefined
@@ -232,6 +257,7 @@ function refreshGraphStyles() {
     .linkWidth((l) => getLinkWidth(l as NetLink))
     .linkColor((l) => getLinkColor(l as NetLink))
     .linkDirectionalParticles((l) => getLinkParticles(l as NetLink))
+  overlayDirty = true
 }
 
 // ===== 遅延ロード（全上場 network.json） =====
@@ -324,12 +350,20 @@ function getScopedBaseData(): NetworkData {
   return source
 }
 
+function saveCurrentNodePositions() {
+  const current = graph.graphData() as unknown as NetworkData | undefined
+  if (!current?.nodes) return
+  for (const n of current.nodes) {
+    if (typeof n.x === 'number' && typeof n.y === 'number' && typeof n.z === 'number') {
+      nodePositionCache.set(n.id, { x: n.x, y: n.y, z: n.z })
+    }
+  }
+}
+
 function getFilteredData(): NetworkData {
   const scoped = getScopedBaseData()
-  const nodes = scoped.nodes
-    .filter((n) => state.activeSectors.has(n.sector))
-    .map((n) => ({ ...n }))
-  const validIds = new Set(nodes.map((n) => n.id))
+  const sectorFilteredNodes = scoped.nodes.filter((n) => state.activeSectors.has(n.sector))
+  const validIds = new Set(sectorFilteredNodes.map((n) => n.id))
   const links = scoped.links
     .filter((l) => {
       if (!validIds.has(linkEndId(l.source)) || !validIds.has(linkEndId(l.target))) return false
@@ -339,6 +373,28 @@ function getFilteredData(): NetworkData {
       return true
     })
     .map((l) => ({ ...l, source: linkEndId(l.source), target: linkEndId(l.target) }))
+
+  // 全表示＋関係値フィルタ適用時はエッジ0本の孤立ノードを非表示化し、描画負荷とノイズを削減
+  let finalNodes = sectorFilteredNodes
+  if (state.scope === 'all' && state.minValue > 0 && links.length > 0) {
+    const connectedIds = new Set<string>()
+    for (const l of links) {
+      connectedIds.add(l.source as string)
+      connectedIds.add(l.target as string)
+    }
+    finalNodes = sectorFilteredNodes.filter(
+      (n) =>
+        connectedIds.has(n.id) ||
+        state.holdings.has(n.id) ||
+        n.id === state.selectedNodeId ||
+        n.id === state.focusScopeId,
+    )
+  }
+
+  const nodes = finalNodes.map((n) => {
+    const cached = nodePositionCache.get(n.id)
+    return cached ? { ...n, x: cached.x, y: cached.y, z: cached.z } : { ...n }
+  })
   return { nodes, links }
 }
 
@@ -430,10 +486,21 @@ function updateDataStatusUI() {
 }
 
 function updateGraphData() {
+  saveCurrentNodePositions()
   const data = getFilteredData()
+  const isLarge = data.nodes.length > 400
   state.visibleNodeCount = data.nodes.length
-  // 大規模グラフ時のWebGL負荷軽減LOD
-  graph.nodeResolution(data.nodes.length > 300 ? 10 : 20)
+  state.engineActive = true
+  state.graphRevision += 1
+  overlayDirty = true
+
+  // 大規模グラフ時は見た目の球体品質を保ちつつ物理収束を高速化
+  graph
+    .nodeResolution(isLarge ? 12 : 18)
+    .warmupTicks(isLarge ? 35 : 20)
+    .cooldownTicks(isLarge ? 75 : 110)
+    .d3AlphaDecay(isLarge ? 0.045 : 0.028)
+    .d3VelocityDecay(isLarge ? 0.38 : 0.32)
   graph.graphData(data)
   ;(document.getElementById('stat-nodes') as HTMLElement).textContent = data.nodes.length.toLocaleString()
   ;(document.getElementById('stat-links') as HTMLElement).textContent = data.links.length.toLocaleString()
@@ -568,7 +635,7 @@ async function renderInspector(node: NetNode) {
         'w-full text-left bg-slate-900/75 hover:bg-slate-800/90 border border-slate-800 rounded-xl p-2.5 transition group'
       const srcBadge =
         link.sourceType === 'llm'
-          ? '<span class="px-1 py-0.2 rounded bg-violet-500/20 text-violet-300 text-[9px]">LLM</span>'
+          ? '<span class="px-1 py-0.2 rounded bg-violet-500/20 text-violet-300 text-[9px]">本文</span>'
           : link.sourceType === 'table'
             ? '<span class="px-1 py-0.2 rounded bg-sky-500/15 text-sky-300 text-[9px]">定型表</span>'
             : ''
@@ -702,6 +769,18 @@ function drawRoundRect(
 }
 
 const MAX_OVERLAY_LABELS = 48
+const lastOverlaySig = {
+  camX: Number.NaN,
+  camY: Number.NaN,
+  camZ: Number.NaN,
+  tgtX: Number.NaN,
+  tgtY: Number.NaN,
+  tgtZ: Number.NaN,
+  selected: null as string | null,
+  hovered: null as string | null,
+  graphRev: -1,
+  logoRev: -1,
+}
 
 function animate() {
   requestAnimationFrame(animate)
@@ -716,22 +795,62 @@ function animate() {
     )
   }
 
-  ctx.clearRect(0, 0, viewportWidth, viewportHeight)
   const camera = graph.camera()
   if (!camera) return
-  const { nodes } = graph.graphData() as unknown as NetworkData
   const camPos = camera.position
-
-  // ズームイン連動：一定距離より近づくと大分類11色→中分類（33業種）近似色へ自動切替（ヒステリシス付き）
   const controls = graph.controls() as unknown as { target?: { x: number; y: number; z: number } } | undefined
   const target = controls?.target ?? { x: 0, y: 0, z: 0 }
+
+  // ズームイン連動：一定距離より近づくと大分類11色→中分類（33業種）近似色へ自動切替（ヒステリシス付き）
   const camDist = Math.hypot(camPos.x - target.x, camPos.y - target.y, camPos.z - target.z)
   const nextSubMode = state.zoomSubSectorMode ? camDist < 285 : camDist < 245
   if (nextSubMode !== state.zoomSubSectorMode) {
     state.zoomSubSectorMode = nextSubMode
     zoomSubSectorBadge?.classList.toggle('hidden', !nextSubMode)
     graph.nodeColor((n) => getNodeColor(n as NetNode))
+    overlayDirty = true
   }
+
+  const cameraMoved =
+    Math.abs(camPos.x - lastOverlaySig.camX) > 0.15 ||
+    Math.abs(camPos.y - lastOverlaySig.camY) > 0.15 ||
+    Math.abs(camPos.z - lastOverlaySig.camZ) > 0.15 ||
+    Math.abs(target.x - lastOverlaySig.tgtX) > 0.15 ||
+    Math.abs(target.y - lastOverlaySig.tgtY) > 0.15 ||
+    Math.abs(target.z - lastOverlaySig.tgtZ) > 0.15
+
+  const stateChanged =
+    overlayDirty ||
+    state.engineActive ||
+    cameraMoved ||
+    state.selectedNodeId !== lastOverlaySig.selected ||
+    state.hoverNodeId !== lastOverlaySig.hovered ||
+    state.graphRevision !== lastOverlaySig.graphRev ||
+    logoCache.revision !== lastOverlaySig.logoRev
+
+  // 物理収束済み＋カメラ静止中は2Dオーバーレイ再描画を完全スキップ（アイドルCPU負荷ゼロ）
+  if (!stateChanged) return
+
+  // 大規模グラフのドラッグ・ホイール操作中のみ2Dオーバーレイを30fps相当へ間引き、3D描画を60fps維持
+  overlayFrameCount = (overlayFrameCount + 1) & 1
+  if (state.visibleNodeCount > 400 && isPointerInteracting && !overlayDirty && overlayFrameCount === 1) {
+    return
+  }
+
+  lastOverlaySig.camX = camPos.x
+  lastOverlaySig.camY = camPos.y
+  lastOverlaySig.camZ = camPos.z
+  lastOverlaySig.tgtX = target.x
+  lastOverlaySig.tgtY = target.y
+  lastOverlaySig.tgtZ = target.z
+  lastOverlaySig.selected = state.selectedNodeId
+  lastOverlaySig.hovered = state.hoverNodeId
+  lastOverlaySig.graphRev = state.graphRevision
+  lastOverlaySig.logoRev = logoCache.revision
+  overlayDirty = false
+
+  ctx.clearRect(0, 0, viewportWidth, viewportHeight)
+  const { nodes } = graph.graphData() as unknown as NetworkData
 
   interface Candidate {
     node: NetNode
@@ -745,21 +864,25 @@ function animate() {
     priority: number
   }
 
+  const isLargeGraph = nodes.length > 400
+  const logoDistSqMax = 310 * 310
+  const labelDistSqMax = isLargeGraph ? 380 * 380 : 480 * 480
+
   const candidates: Candidate[] = []
   for (const n of nodes) {
     if (typeof n.x !== 'number') continue
     const dx = camPos.x - n.x
     const dy = camPos.y - (n.y ?? 0)
     const dz = camPos.z - (n.z ?? 0)
-    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+    const distSq = dx * dx + dy * dy + dz * dz
 
     const isSelected = n.id === state.selectedNodeId
     const isNeighbor = !!state.selectedNodeId && state.highlightNodes.has(n.id)
     const isHovered = n.id === state.hoverNodeId
     const isHold = isHolding(n.id)
     const isMajor = (n.marketCap || 0) >= 13
-    const showLogo = dist < 310 || isSelected || isHovered || isNeighbor || isHold
-    const showLabel = dist < 480 || isSelected || isHovered || isNeighbor || isMajor || isHold
+    const showLogo = distSq < logoDistSqMax || isSelected || isHovered || isNeighbor || isHold
+    const showLabel = distSq < labelDistSqMax || isSelected || isHovered || isNeighbor || isMajor || isHold
     if (!showLogo && !showLabel) continue
 
     const screen = graph.graph2ScreenCoords(n.x, n.y ?? 0, n.z ?? 0)
@@ -773,6 +896,7 @@ function animate() {
       continue
     }
 
+    const dist = Math.sqrt(distSq)
     const priority =
       (isSelected ? 10000 : 0) +
       (isHovered ? 8000 : 0) +
@@ -900,8 +1024,32 @@ function setAutoRotate(enabled: boolean) {
 }
 
 container.addEventListener('pointerdown', () => {
+  isPointerInteracting = true
   if (state.autoRotate) setAutoRotate(false)
 })
+window.addEventListener('pointerup', () => {
+  if (!isPointerInteracting) return
+  isPointerInteracting = false
+  overlayDirty = true
+})
+window.addEventListener('pointercancel', () => {
+  if (!isPointerInteracting) return
+  isPointerInteracting = false
+  overlayDirty = true
+})
+container.addEventListener(
+  'wheel',
+  () => {
+    isPointerInteracting = true
+    if (wheelIdleTimer !== null) window.clearTimeout(wheelIdleTimer)
+    wheelIdleTimer = window.setTimeout(() => {
+      isPointerInteracting = false
+      overlayDirty = true
+      wheelIdleTimer = null
+    }, 140)
+  },
+  { passive: true },
+)
 
 document.getElementById('btn-autorotate')?.addEventListener('click', () => setAutoRotate(!state.autoRotate))
 document.getElementById('btn-reset')?.addEventListener('click', () => {
@@ -942,13 +1090,33 @@ document.getElementById('btn-close-controls')?.addEventListener('click', () => {
   leftPanel.classList.add('hidden')
 })
 
-// 表示スコープ切替
+// 関係値スライダー要素＆同期ヘルパー
+const thresholdSlider = document.getElementById('threshold-slider') as HTMLInputElement
+const thresholdValue = document.getElementById('threshold-value') as HTMLElement
+function setThresholdUI(val: number) {
+  state.minValue = val
+  thresholdSlider.value = String(val)
+  thresholdValue.textContent = `${val} 以上`
+}
+setThresholdUI(state.minValue)
+
+// 表示スコープ切替（全表示時は関係値フィルタを中規模＝45へ自動設定し、戻す際に元の値へ復帰）
 document.querySelectorAll<HTMLButtonElement>('.scope-btn').forEach((btn) => {
   btn.addEventListener('click', async () => {
     const next = btn.dataset.scope as ViewScope | undefined
     if (!next) return
+    const prevScope = state.scope
     if (next === 'all' || next === 'holdings') {
       await ensureFullData()
+    }
+    if (next === 'all' && prevScope !== 'all') {
+      if (state.minValue < ALL_SCOPE_DEFAULT_MIN_VALUE) {
+        state.preAllMinValue = state.minValue
+        setThresholdUI(ALL_SCOPE_DEFAULT_MIN_VALUE)
+      }
+    } else if (prevScope === 'all' && next !== 'all' && state.preAllMinValue !== null) {
+      setThresholdUI(state.preAllMinValue)
+      state.preAllMinValue = null
     }
     state.scope = next
     state.expandedSeeds.clear()
@@ -971,6 +1139,10 @@ document.querySelectorAll<HTMLButtonElement>('.hops-btn').forEach((btn) => {
 document.getElementById('btn-focus-subgraph')?.addEventListener('click', async () => {
   if (!state.selectedNodeId) return
   await ensureFullData()
+  if (state.scope === 'all' && state.preAllMinValue !== null) {
+    setThresholdUI(state.preAllMinValue)
+    state.preAllMinValue = null
+  }
   state.focusScopeId = state.selectedNodeId
   state.scope = 'focus'
   state.expandedSeeds.clear()
@@ -1011,15 +1183,16 @@ document.getElementById('metric-cap')?.addEventListener('click', () => {
   refreshGraphStyles()
 })
 
-// 関係値スライダー
-const thresholdSlider = document.getElementById('threshold-slider') as HTMLInputElement
-const thresholdValue = document.getElementById('threshold-value') as HTMLElement
-thresholdSlider.value = String(state.minValue)
-thresholdValue.textContent = `${state.minValue} 以上`
+// 関係値スライダー（ラベル即時反映＋描画再構築60msデバウンスで操作カタツキを防止）
+let thresholdDebounceTimer: number | null = null
 thresholdSlider.addEventListener('input', () => {
-  state.minValue = Number(thresholdSlider.value)
-  thresholdValue.textContent = `${state.minValue} 以上`
-  updateGraphData()
+  state.preAllMinValue = null
+  setThresholdUI(Number(thresholdSlider.value))
+  if (thresholdDebounceTimer !== null) window.clearTimeout(thresholdDebounceTimer)
+  thresholdDebounceTimer = window.setTimeout(() => {
+    thresholdDebounceTimer = null
+    updateGraphData()
+  }, 60)
 })
 
 // 出典フィルタ

@@ -6,10 +6,10 @@
 
 | ファイルパス | 実測サイズ（非圧縮） | 内容・用途（3,750有報バックフィル後） | 読込タイミング |
 | --- | --- | --- | --- |
-| `public/data/meta.json` | 0.2 KB | 最終更新日時、収録企業数（3,791）、インデックス数（3,856）、エッジ数（28,021）、データ種別（`live`） | 起動時 |
+| `public/data/meta.json` | 0.2 KB | 最終更新日時、収録企業数（3,791）、インデックス数（3,856）、エッジ数（27,391）、データ種別（`live`） | 起動時 |
 | `public/data/index.json` | 888 KB | 全上場3,856社の軽量検索インデックス（`code`, `name`, `sector`, `subSector`, `market`, `marketCap`, `capital`, `degree`） | 起動時（全社検索用） |
-| `public/data/core.json` | 627 KB | 初期表示用コアグラフ（次数×時価総額上位の主要ハブ **180社・2,247本**） | 起動時（即座に3D描画） |
-| `public/data/network.json` | 8.3 MB | 全接続企業 **3,791社** のノード基本情報＋全関係エッジ **28,021本**（抜粋テキストは分離し軽量化） | コア外検索・全社表示切替時に遅延読込 |
+| `public/data/core.json` | 425 KB | 初期表示用コアグラフ（時価総額上位120社＋構造ハブ上位60社のハイブリッド選定 **180社・1,465本**） | 起動時（即座に3D描画） |
+| `public/data/network.json` | 8.2 MB | 全接続企業 **3,791社** のノード基本情報＋全関係エッジ **27,391本**（抜粋テキストは分離し軽量化） | コア外検索・全社表示切替時に遅延読込 |
 | `public/data/details/{1-9}.json` | 計 2.2 MB（各150〜400KB） | 証券コード先頭1桁で分割した企業詳細（有報抜粋・提出日・`docId`） | ノード選択時に該当バケットのみ読込＆キャッシュ |
 
 > **フォールバック挙動**：`public/data/core.json` が存在しない開発環境や読込エラー時は、自動的に同梱の `src/data/sample.json` へフォールバックする。
@@ -120,7 +120,7 @@
 | **GitHub リポジトリ & Pages** | コード・仕様書・配信JSON（`public/data/`）の正本と静的配信 | 無料 | 生ZIP・`data/cache/` は `.gitignore` で除外 |
 | **GitHub Actions** | 毎週日曜の自動差分更新（`update-data.yml`）＆ Pages 自動デプロイ（`pages.yml`） | 無料 | `concurrency` 制御で多重実行を防止、`actions/cache@v4` で解析済みキャッシュを継続引き継ぎ |
 | **名寄せ例外辞書** | [data/alias_overrides.json](../data/alias_overrides.json)（41件の営業子会社・略称マップ） | 無料 | 人間がJSONへ1行追記→PRマージするだけで即反映 |
-| **Google Sheets（任意補助）** | `Git_stock_networkmap 運用管理シート`（`batch_status` 上位100ハブ、`alias_overrides` メモ） | 無料 | 運用状況の可視化補助用。シートがなくても自動バッチ・Webアプリは100%自立稼働 |
+| **Google Sheets（任意補助）** | `Git_stock_networkmap 運用管理シート`（`batch_status` 上位200ハブ、`alias_overrides` メモ） | 無料 | 運用状況の可視化補助用。シートがなくても自動バッチ・Webアプリは100%自立稼働 |
 | **`data/llm_relations.json`** | 手動や外部調査で特定エッジを追加したい場合のみ使う任意ファイル | 無料 | 空配列 `[]` のままで一切問題なし。保守必須ではない |
 
 ### 4.2 必要なシークレット（GitHub Repository Secrets）

@@ -66,6 +66,7 @@ export function buildLogoCandidates(
 export class LogoCache {
   private readonly cache = new Map<string, LogoEntry>()
   private readonly logokitToken: string
+  public revision = 0
 
   constructor(logokitToken: string) {
     this.logokitToken = logokitToken
@@ -106,6 +107,7 @@ export class LogoCache {
       if (img.naturalWidth > 0 && img.naturalHeight > 0) {
         entry.status = 'loaded'
         entry.resolvedUrl = img.currentSrc || img.src
+        this.revision += 1
       } else {
         tryNext()
       }

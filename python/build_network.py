@@ -36,6 +36,8 @@ try:
         CompanyRecord,
         CompanyResolver,
         clean_sec_code,
+        has_corporate_mention,
+        is_ambiguous_text_term,
         load_company_master,
     )
     from market_data import load_market_cache
@@ -44,6 +46,8 @@ except ImportError:
         CompanyRecord,
         CompanyResolver,
         clean_sec_code,
+        has_corporate_mention,
+        is_ambiguous_text_term,
         load_company_master,
     )
     from python.market_data import load_market_cache  # type: ignore
@@ -288,11 +292,19 @@ def build_from_extracted(
 
         # 4) 本文テキスト共起関係（ローカルNLP）
         for rel in filing.get("text_relations", []):
+            raw_name = str(rel.get("counterparty_name") or "")
             t_code = clean_sec_code(rel.get("counterparty_code")) or resolver.resolve(
-                str(rel.get("counterparty_name") or ""),
+                raw_name,
                 exclude_code=filer_code,
             )
             if not t_code:
+                continue
+            snippet = str(rel.get("snippet") or "")
+            target_rec = master.get(t_code)
+            target_name = target_rec.name if target_rec else raw_name
+            if (is_ambiguous_text_term(raw_name) or is_ambiguous_text_term(target_name)) and not (
+                has_corporate_mention(raw_name, snippet) or has_corporate_mention(target_name, snippet)
+            ):
                 continue
             add_edge(
                 filer_code,
@@ -300,7 +312,7 @@ def build_from_extracted(
                 value=int(rel.get("score") or 50),
                 kind=str(rel.get("kind") or "資本・業務提携"),
                 source_type="llm",
-                detail=str(rel.get("snippet") or "")[:90],
+                detail=snippet[:90],
                 doc_id=doc_id,
             )
 
@@ -343,6 +355,47 @@ def build_from_extracted(
         reverse=True,
     )
     return {"nodes": nodes, "links": links}, details_map
+
+
+def select_core_nodes(nodes: list[dict], *, core_max_nodes: int = 180) -> list[dict]:
+    """初期表示用コアノード（主要ハブ）を選定する。
+
+    単純な接続数（政策保有銘柄数）順だと地銀・老舗中小型に偏り、
+    ソニー・ファーストリテイリング・東京エレクトロン等の超大型主力株が漏れるため、
+    1) 接続あり銘柄の時価総額上位（枠の2/3＝120社）
+    2) 残り枠（1/3＝60社）を「接続数 × 企業規模補正」上位の構造ハブ
+    のハイブリッドで選定する。
+    """
+    if len(nodes) <= core_max_nodes:
+        return list(nodes)
+
+    connected = [n for n in nodes if (n.get("degree") or 0) >= 1]
+    pool = connected if len(connected) >= core_max_nodes else list(nodes)
+
+    mcap_quota = max(1, round(core_max_nodes * 2 / 3))
+    by_mcap = sorted(
+        pool,
+        key=lambda n: (float(n.get("marketCap") or 0.0), int(n.get("degree") or 0)),
+        reverse=True,
+    )
+    picked: list[dict] = []
+    picked_ids: set[str] = set()
+    for n in by_mcap[:mcap_quota]:
+        picked.append(n)
+        picked_ids.add(str(n["id"]))
+
+    remaining = [n for n in pool if str(n["id"]) not in picked_ids]
+    by_hub = sorted(
+        remaining,
+        key=lambda n: int(n.get("degree") or 0)
+        * (1.0 + 0.65 * math.log10(max(float(n.get("marketCap") or 0.0), 0.05) * 20.0 + 1.0)),
+        reverse=True,
+    )
+    need = core_max_nodes - len(picked)
+    for n in by_hub[:need]:
+        picked.append(n)
+        picked_ids.add(str(n["id"]))
+    return picked
 
 
 def write_split_bundle(
@@ -405,13 +458,8 @@ def write_split_bundle(
                 }
             )
 
-    # 2) 初期表示用コアネットワーク（core.json：次数×時価総額上位ハブ）
-    ranked_nodes = sorted(
-        nodes,
-        key=lambda n: (n.get("degree", 0) * 12) + math.log10((n.get("marketCap", 0.0) or 0.01) * 100 + 1) * 15,
-        reverse=True,
-    )
-    core_nodes = ranked_nodes[:core_max_nodes]
+    # 2) 初期表示用コアネットワーク（core.json：時価総額上位2/3＋構造ハブ上位1/3のハイブリッド選定）
+    core_nodes = select_core_nodes(nodes, core_max_nodes=core_max_nodes)
     core_ids = {n["id"] for n in core_nodes}
     core_links = [l for l in links if l["source"] in core_ids and l["target"] in core_ids]
 

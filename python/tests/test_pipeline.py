@@ -338,6 +338,38 @@ class TestPipeline(unittest.TestCase):
             count = csv_to_aliases(csv_path, aliases_path)
             self.assertEqual(count, 2)
 
+    def test_ambiguous_katakana_guard_and_hybrid_core_selection(self) -> None:
+        from build_network import select_core_nodes
+
+        records = {
+            "8918": CompanyRecord(code="8918", name="ランド", sector="不動産・建設", sector33="不動産業"),
+            "7047": CompanyRecord(code="7047", name="ポート", sector="通信・IT", sector33="情報・通信業"),
+            "5909": CompanyRecord(code="5909", name="コロナ", sector="素材・重工", sector33="金属製品"),
+            "7203": CompanyRecord(code="7203", name="トヨタ自動車", sector="自動車・モビリティ", sector33="輸送用機器"),
+        }
+        resolver = CompanyResolver(records)
+
+        # 一般名詞・語中カタカナでは誤爆しないこと
+        noisy = "自社ブランドと事業ポートフォリオの強化に加え、新型コロナウイルス影響下でも協業を進める。"
+        self.assertEqual(resolver.find_mentioned_codes(noisy), [])
+
+        # 法人表記付き・明確な社名では正常検出されること
+        explicit = "株式会社ランドおよびトヨタ自動車との資本業務提携を締結した。"
+        codes = {c for c, _ in resolver.find_mentioned_codes(explicit)}
+        self.assertIn("8918", codes)
+        self.assertIn("7203", codes)
+
+        # ハイブリッドコア選定（時価総額上位2/3＋構造ハブ1/3）
+        nodes = [
+            {"id": "MEGA1", "marketCap": 25.0, "degree": 15},
+            {"id": "MEGA2", "marketCap": 20.0, "degree": 12},
+            {"id": "HUB1", "marketCap": 1.0, "degree": 300},
+            {"id": "SMALL1", "marketCap": 0.05, "degree": 80},
+            {"id": "SMALL2", "marketCap": 0.02, "degree": 75},
+        ]
+        selected_ids = {n["id"] for n in select_core_nodes(nodes, core_max_nodes=3)}
+        self.assertEqual(selected_ids, {"MEGA1", "MEGA2", "HUB1"})
+
 
 if __name__ == "__main__":
     unittest.main()
