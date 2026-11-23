@@ -1,168 +1,133 @@
 # Git_stock_networkmap
 
-EDINETで開示される有価証券報告書（有報）から企業間の関係を抽出し、3Dネットワークグラフで可視化するプロジェクトです。
+EDINETで開示される有価証券報告書（有報）から日本の上場企業間のつながり（政策保有株式・大株主・主要顧客・提携・供給網）を自動抽出し、3Dネットワークグラフで可視化するWebアプリケーションです。
 
-主要な顧客・取引先・資本関係といった「企業のつながり」を、球体のノードと関係の強さで太さが変わるエッジで描き、セクターの色分けや企業詳細のパネルとあわせて直感的に眺められるようにします。まずは主要な日本企業24社のサンプルデータで全体の動きを確認できる状態になっており、実データへの差し替えはJSONを入れ替えるだけで行えます。
+全上場企業（約3,800社）を対象に、**LLMや有料APIへ一切依存しない決定論的な自動パイプライン**（EDINET API v2 + iXBRL定型表パーサ + ローカル本文共起抽出 + `yfinance`）と GitHub Actions / GitHub Pages の無料枠だけで完結・自動運用できるよう設計されています。
 
 ## 公開URL
 
-https://asoka501.github.io/Git_stock_networkmap/
+- 本番サイト： https://asoka501.github.io/Git_stock_networkmap/
+- コンパクト表示モード（スリムUI）： https://asoka501.github.io/Git_stock_networkmap/?embed=1
 
-## 構成
+## 収録データ実績（全決算期12ヶ月バックフィル済み）
+
+| 項目 | 実績値 | 補足 |
+| --- | --- | --- |
+| 対象期間 | `2025-12-01` 〜 `2026-11-23`（以降、毎週自動差分更新） | 全決算期（3月・12月・2月・その他決算） |
+| パース済み有報数 | **3,750 件** | EDINET上場マスタ 3,811社比 98.4% |
+| 全上場インデックス社数 | **3,856 社** | `public/data/index.json`（全社検索対応） |
+| 接続ノード数（企業数） | **3,791 社** | 全上場の 98.3% が関係網へ接続 |
+| 関係エッジ総数 | **28,021 本** | 定型表（政策保有・大株主・主要顧客）＋本文共起（全6種別） |
+| 時価総額 / ロゴドメイン補完率 | **96.4% / 96.6%** | 東証上場銘柄はほぼ100%補完（残余は地方単独上場・上場廃止銘柄等） |
+| 初期表示コアグラフ | **180 社 / 2,247 本** | `public/data/core.json`（約627KB）で初回高速表示 |
+
+## 設計原則（LLM不要・ランニングコスト0円）
+
+1. **LLMなしで完全自律保守**：定期データ取得・iXBRL解析・企業名名寄せ・時価総額/ドメイン補完・分割JSON生成・Pages公開まで、すべて決定論的なPythonコードと無料データソースのみで完結します。外部LLM APIキー（`GEMINI_API_KEY` 等）は一切不要です。
+2. **完全無料インフラ**：GitHub Pages（静的配信）＋ GitHub Actions（週次自動バッチ＆手動バックフィル）＋ 無料API（EDINET API v2 / `yfinance` / `logoapi.sh` / LogoKit無料枠）のみでランニングコスト0円を維持します。
+3. **全上場規模でも軽快**：配信JSONを `meta` / `index` / `core` / `network` / `details/{0-9}` に分割し、初回は主要ハブ180社のみを描画、検索や範囲切替時に全社データを遅延読込します。
+
+## リポジトリ構成
 
 | パス | 内容 |
 | --- | --- |
-| `index.html` | 画面の骨格（ヘッダー、コントロールパネル、詳細パネル、JSON読込モーダル） |
-| `src/main.ts` | 3Dグラフ本体（3d-force-graph / three.js）とUIロジック |
-| `src/style.css` | Tailwind CSS とガラス調パネルなどの共通スタイル |
-| `src/data/sample.json` | 主要日本企業24社のサンプルネットワークデータ |
-| `python/edinet_client.py` | EDINET API v2 から書類一覧とXBRLを取得するクライアント |
-| `python/parse_xbrl.py` | 有報XBRLから対象セクション本文と主要な顧客関係を抽出する雛形 |
-| `python/build_network.py` | 抽出結果をフロントエンド用ネットワークJSONへ整形する |
-| `pages-workflow.yml` | GitHub Pages 公開用のワークフロー定義 |
+| `index.html` | 画面レイアウト（検索バー、フィルタドロワー、企業詳細インスペクタ、共有URL/JSON読込モーダル） |
+| `src/main.ts` | 3Dグラフ描画（`3d-force-graph` / `three.js`）、ズーム連動LOD、フィルタ、インスペクタUI |
+| `src/dataLoader.ts` | 分割静的JSON（`meta` / `index` / `core` / `network` / `details`）の段階読込＆サンプルフォールバック |
+| `src/sectorPalette.ts` | 11大分類カラーパレット・ズームイン時33業種近似色・業種表記揺れ正規化 |
+| `src/logoLoader.ts` | 企業ロゴ多段フォールバック（`logoapi.sh` → LogoKit → 略称バッジ）とインスペクタミニロゴ遅延読込 |
+| `src/graphUtils.ts` | 1〜2ホップ部分グラフ抽出・保有銘柄周辺スコープ計算 |
+| `src/embedConfig.ts` | URLクエリパラメータ（`?embed=1`, `focus`, `holdings`, `hops`, `mode` 等）の解析 |
+| `src/types.ts` | フロントエンド共通型定義（ノード・エッジ・詳細バケット・URL設定） |
+| `src/data/sample.json` | 開発・フォールバック用の24社サンプルデータ |
+| `python/run_pipeline.py` | 全上場データ更新パイプラインの統合エントリポイント |
+| `python/company_master.py` | EDINETコードリスト（`Edinetcode.zip` 主系）＋ JPX一覧（任意補助）による企業マスタ＆11セクター分類 |
+| `python/edinet_client.py` | EDINET API v2 書類一覧走査・有報ZIP差分ダウンロード（`docId` マニフェスト管理） |
+| `python/parse_xbrl.py` | iXBRL定型表パーサ（`colspan`/`rowspan` 展開・列単位の通貨単位判定）＋ ローカル本文共起抽出 |
+| `python/market_data.py` | `yfinance` による時価総額（兆円）・公式サイトドメインのハブ優先TTLキャッシュ更新 |
+| `python/build_network.py` | 企業名名寄せ・異常額ガード・スコア統合・分割JSON（`public/data/`）生成 |
+| `python/ops_helper.py` | 名寄せ例外辞書・未一致ログ集計・運用管理シート連携用ヘルパー |
+| `python/check_api.py` | EDINET API v2 疎通確認スクリプト |
+| `python/tests/test_pipeline.py` | APIキー不要のオフライン単体テスト一式 |
+| `data/alias_overrides.json` | 営業子会社・略称を親会社証券コードへ紐づける名寄せ例外辞書（人間が保守） |
+| `data/llm_relations.json` | 任意拡張用の手動／追加関係データ格納ファイル（空配列 `[]` のままでも完全稼働） |
+| `public/data/` | GitHub Pages へ配信される生成済み分割JSON一式（Actionsが自動更新） |
+| `.github/workflows/update-data.yml` | 毎週日曜の自動差分更新・手動バックフィル用ワークフロー |
+| `.github/workflows/pages.yml` | `main` 更新および `update-data.yml` 完了連動での GitHub Pages 自動デプロイ |
 
-技術スタック: Vite + TypeScript + Tailwind CSS + Lucide（土台）、three.js ベースの 3d-force-graph（3D描画）。
+技術スタック：Vite + TypeScript + Tailwind CSS + Lucide + `3d-force-graph`（three.js）／ Python 3.12（`requests`, `beautifulsoup4`, `lxml`, `yfinance`）。
 
 ## データフロー
 
-```
-EDINET API v2
-  │  書類一覧 documents.json / XBRL(ZIP) documents/{docID}
+```text
+EDINETコードリスト (Edinetcode.zip) + data/alias_overrides.json
+  │
   ▼
-python/edinet_client.py     … 一覧取得・XBRLダウンロード
+EDINET API v2 (documents.json / documents/{docID}?type=1)
+  │  python/edinet_client.py   … docIdマニフェストによる未処理有報の差分ZIP取得
   ▼
-python/parse_xbrl.py        … セクション本文と「主要な顧客」関係を抽出
+python/parse_xbrl.py           … iXBRL定型表パース（政策保有・大株主・主要顧客）
+                                 ＋ ローカルPython企業名共起抽出（LLM不要）
   ▼
-python/build_network.py     … ネットワークJSON（nodes / links）へ整形
+python/market_data.py          … yfinance で時価総額＆公式サイトドメインをハブ優先補完
   ▼
-フロントエンド（3D表示）     … JSONを読み込み、3Dネットワークとして描画
-```
-
-フロントエンドは起動時に `src/data/sample.json` を表示します。実データで整形したJSONは、画面右上の「JSON読込」から貼り付けて即座に再描画することもできます。
-
-## ネットワークJSONスキーマ
-
-フロントエンドとPython側の間の契約です。この形式に従うJSONであれば、そのまま3D表示に差し替えられます。
-
-### nodes（企業）
-
-| フィールド | 型 | 説明 |
-| --- | --- | --- |
-| `id` | string | ノードの一意識別子。証券コードと同値にする |
-| `code` | string | 証券コード（4桁） |
-| `name` | string | 企業名 |
-| `sector` | string | セクター名（色分けの単位。例: 自動車・モビリティ、半導体・電機、商社・エネルギー、通信・IT、金融、素材・重工） |
-| `marketCap` | number | 時価総額（兆円）。ノードサイズ切替の基準のひとつ |
-| `capital` | number | 資本金（兆円）。ノードサイズ切替の基準のひとつ |
-| `logo` | string | ロゴ画像URL。`https://logoapi.sh/ticker/{code}.svg` 形式 |
-| `logoText` | string（任意） | ロゴが取得できない場合の代替表示（英字略称） |
-| `excerpt` | string（任意） | 詳細パネルに表示する有報テキストの抜粋 |
-
-### links（企業間の関係）
-
-| フィールド | 型 | 説明 |
-| --- | --- | --- |
-| `source` | string | 関係元のノード `id` |
-| `target` | string | 関係先のノード `id` |
-| `value` | number | 関係値 0〜100。線の太さと粒子アニメーションの量を決める |
-| `kind` | string | 関係の種別（例: 主要顧客・供給、資本・業務提携、金融・融資、共同開発・DX、持ち合い） |
-| `detail` | string（任意） | 関係の補足説明。詳細パネルとツールチップに表示する |
-
-### 例
-
-```json
-{
-  "nodes": [
-    {
-      "id": "7203",
-      "code": "7203",
-      "name": "トヨタ自動車",
-      "sector": "自動車・モビリティ",
-      "marketCap": 48.0,
-      "capital": 0.64,
-      "logo": "https://logoapi.sh/ticker/7203.svg"
-    }
-  ],
-  "links": [
-    { "source": "7203", "target": "6902", "value": 98, "kind": "主要顧客・供給" }
-  ]
-}
+python/build_network.py        … 名寄せ・異常額ガード・スコア統合 → public/data/ 分割JSON出力
+  ▼
+GitHub Pages（自動デプロイ）    … 3Dネットワークビューアで配信
 ```
 
-## ローカル開発
+## 主な画面機能
+
+- **11大分類カラーパレット＋ズーム連動33業種近似色**：俯瞰時は人間が識別しやすい11カテゴリ配色、ズームイン時はJPX 33業種ごとの近似色へ自動切替
+- **多段企業ロゴ表示**：3Dノード上（ズーム連動LOD＋描画数上限制御）および詳細インスペクタの関係企業一覧にミニロゴ（`20×20px` 遅延読込）を表示。`logoapi.sh/{domain}` → LogoKit → セクター色略称バッジへ自動フォールバック
+- **表示スコープ切替**：コアハブ（上位180社）／保有銘柄周辺／選択企業の1〜2ホップ展開／全社表示
+- **多彩なフィルタ＆検索**：全3,856社インクリメンタル検索、11セクターON/OFF、関係種別6種（政策保有株式・大株主・主要顧客・資本業務提携・共同開発・供給網リスク）、出典フィルタ（定型表のみ / 本文抽出含む）、ノードサイズ切替（時価総額 / 資本金）、関係値スライダー
+- **URLクエリ連携＆スリム表示**：`?embed=1`（スリムUI）、`?focus=7203`、`?holdings=7203,6758,8035`、`?hops=1` などで任意の状態をURL共有可能
+- **操作ショートカット**：`/` 検索フォーカス、`R` 全体表示リセット、`Esc` 選択・モーダル解除
+
+## ローカル開発・テスト
 
 ```bash
+# フロントエンド
 npm install
 npm run dev      # 開発サーバー
-npm run build    # 型チェック＋本番ビルド（dist/ へ出力）
-npm run preview  # ビルド結果の確認
+npm run build    # 型チェック（tsc --noEmit）＋ 本番ビルド（dist/）
+npm run preview  # ビルド結果プレビュー
+
+# Pythonパイプライン単体テスト（APIキー不要・オフライン実行可）
+python3 -m venv .venv
+.venv/bin/pip install -r python/requirements.txt
+.venv/bin/python -m unittest discover -s python/tests -v
 ```
 
-## Python側の使い方（全上場パイプライン）
+## パイプライン手動実行・保守コマンド
 
-事前にEDINETでSubscription-Keyを発行し、環境変数（または自動更新時は GitHub Actions Secrets の `EDINET_API_KEY`）に設定します。キーをコードやリポジトリに書き込むことはありません。
+事前にEDINET閲覧サイトで無料の `Subscription-Key` を発行し、環境変数（自動更新時は GitHub Actions Repository Secrets の `EDINET_API_KEY`）へ設定します。
 
 ```bash
-pip install -r python/requirements.txt
 export EDINET_API_KEY="<発行したSubscription-Key>"
 
-# 接続確認
-python python/check_api.py
+# 1. EDINET API v2 疎通確認
+.venv/bin/python python/check_api.py
 
-# 一括パイプライン（JPX/EDINETマスタ同期 → 有報差分取得・定型表＆本文共起抽出 → 時価総額補完 → public/data/ へ分割JSON出力）
-python python/run_pipeline.py --days 14 --max-downloads 120 --out-dir public/data
+# 2. 直近14日分の通常差分更新
+.venv/bin/python python/run_pipeline.py --days 14 --max-downloads 120 --market-cap-limit 300 --out-dir public/data
 
-# 初回バックフィル例（決算集中期を指定して段階取得）
-python python/run_pipeline.py --from 2025-06-20 --to 2025-06-30 --max-downloads 200 --out-dir public/data
+# 3. 期間指定バックフィル（例：6月決算集中期）
+.venv/bin/python python/run_pipeline.py --from 2026-06-01 --to 2026-06-30 --max-downloads 600 --market-cap-limit 600 --out-dir public/data
 
-# オフライン単体テスト（APIキー不要）
-python -m unittest discover -s python/tests -v
-
-# サンプルデータのネットワークJSONを出力（動作確認用）
-python python/build_network.py --sample --out network.json
+# 4. 時価総額・ドメインのみのキャッシュ補完（有報ダウンロード0件）
+.venv/bin/python python/run_pipeline.py --days 3 --max-downloads 0 --market-cap-limit 1000 --out-dir public/data
 ```
 
-GitHub Actions（[.github/workflows/update-data.yml](.github/workflows/update-data.yml)）により、GitHub Secrets へ `EDINET_API_KEY` を登録すると毎週自動更新および手動バックフィル実行が可能になります。
+### GitHub Actions での保守運用（LLM不要）
 
-## 格納方針
+- **定期更新**：[.github/workflows/update-data.yml](.github/workflows/update-data.yml) が毎週日曜（UTC 18:00）に自動実行され、新着有報と期限切れ時価総額を差分更新して `public/data/` をコミットします。
+- **本番自動反映**：`update-data.yml` の成功完了をトリガー（`workflow_run`）に [.github/workflows/pages.yml](.github/workflows/pages.yml) が自動実行され、GitHub Pages へ即座に反映されます。
+- **名寄せ精度の改善**：未一致の企業名（例：営業子会社や略称）を親会社コードへ紐づけたい場合は、[data/alias_overrides.json](data/alias_overrides.json) に `"表記": "4桁コード"` を1行追記してPRマージするだけで次回実行から自動反映されます。
 
-- コードと整形済みJSONは、このリポジトリ（Git）を正本として管理します。
-- 生のXBRL（ZIP）はリポジトリに入れません（`.gitignore` 済み）。原本はGoogle Driveへバックアップする想定です。
-- 企業マスタや抽出途中の一覧は、将来的にスプレッドシートを中間マスタとして併用する余地がありますが、最終的な受け渡し形式は上記のネットワークJSONに統一します。
+## 関連ドキュメント
 
-## 埋め込み（Museアプリ向け）
-
-公開ページは `iframe` でそのまま埋め込めます。`?embed=1` を付けると、ヘッダーと設定パネルを折りたたんだスリムUIで表示されます。
-
-```html
-<iframe
-  src="https://asoka501.github.io/Git_stock_networkmap/?embed=1"
-  width="100%"
-  height="600"
-  style="border:0;border-radius:12px;"
-  loading="lazy"
-  allow="fullscreen"
-  title="日本株 企業関係 3Dネットワーク">
-</iframe>
-```
-
-保有銘柄ハイライトや初期フォーカスも、任意のURLパラメータだけで連携できます（例：`?embed=1&holdings=7203,6758,8035&focus=7203&hops=1`）。詳細は [docs/EMBED_UI_SPEC.md](docs/EMBED_UI_SPEC.md) および [docs/SPEC.md](docs/SPEC.md) を参照してください。
-
-## 画面の機能
-
-- `?embed=1` スリム埋め込みモード（折りたたみフィルタドロワー、全画面切替、`ResizeObserver` 追従）
-- URLパラメータ連携（`holdings` 保有銘柄ゴールド強調、`focus` 初期フォーカス、`hops` 1〜2ホップ周辺表示）
-- セクター色分け・関係種別チップフィルタ・出典フィルタ（定型表 / LLM）
-- ノードサイズ切替（時価総額／資本金）と関係値スライダー
-- 関係値で変わる線の太さと、関係方向への粒子アニメーション
-- ドラッグ回転・スクロールズーム、自動回転のON/OFF、全体表示リセット、ショートカット（`/` 検索、`R` リセット、`Esc` 解除）
-- ズーム時に銘柄ロゴとラベルを表示（未取得ロゴの高速フォールバック＆大規模グラフ向けLOD上限制御）
-- ノードクリックで関連企業を強調し、詳細パネル（「この銘柄周辺に絞る」「さらに1ホップ広げる」対応）を表示
-- 全社横断検索、埋め込みコード生成モーダル、JSON読込で実データへの差し替え
-
-## 今後の課題
-
-- 実APIキーでの大量取得: 提出日を走査して有報をまとめて取得するバッチ化と、取得済み管理。
-- 関係抽出の精度向上: `parse_xbrl.py` の簡易抽出を、タクソノミ要素と表構造に基づく抽出へ置き換える。相手企業名の証券コードへの名寄せも含む。
-- 時価総額などの外部データ突合せ: `marketCap` / `capital` を企業マスタや外部データと突き合わせて実値化する。
-- 関係種別の拡張: 主要な顧客に加えて、持ち合い（政策保有株式）や主要な借入先などの抽出。
+- [docs/SPEC.md](docs/SPEC.md) — システム全体仕様・設計原則・アーカイブ済みフェーズ実績・セキュリティ運用
+- [docs/EMBED_UI_SPEC.md](docs/EMBED_UI_SPEC.md) — フロントエンドUI/UX・11セクター配色・ロゴ多段フォールバック・URLクエリ仕様
+- [docs/DATA_SCHEMA_AND_PIPELINE.md](docs/DATA_SCHEMA_AND_PIPELINE.md) — 分割JSONスキーマ・EDINET自動パイプライン詳細・LLM非依存の長期保守手順
