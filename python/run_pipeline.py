@@ -134,23 +134,6 @@ def run(args: argparse.Namespace) -> int:
         save_manifest(manifest, manifest_path)
         print(f"[Step 3/5] 有報パース完了: 今回新規 {processed} 件 / 累計キャッシュ {len(list(extracted_dir.glob('*.json')))} 件", file=sys.stderr)
 
-    # Step 4: 時価総額＆公式サイトドメイン補完（yfinance 無料差分キャッシュ）
-    if not args.skip_market_cap:
-        print(f"[Step 4/5] 時価総額・ドメインを更新中（最大 {args.market_cap_limit} 社）...", file=sys.stderr)
-        ordered = sorted(
-            master.values(),
-            key=lambda r: (0 if r.market == "プライム" else 1 if r.market == "スタンダード" else 2, r.code),
-        )
-        market_cache = update_market_caps(
-            [r.code for r in ordered],
-            market_cache_path,
-            limit=args.market_cap_limit,
-            ttl_days=args.market_cap_ttl_days,
-        )
-    else:
-        market_cache = load_market_cache(market_cache_path)
-
-    # Step 5: 分割静的JSON生成（public/data/）
     all_filings = load_filings_from_paths(None, extracted_dir)
     if not all_filings:
         print("[Step 5/5] 抽出済み有報JSONが0件のため public/data/ の書き出しをスキップします（サンプルフォールバック維持）。", file=sys.stderr)
@@ -162,6 +145,42 @@ def run(args: argparse.Namespace) -> int:
         else None
     )
 
+    # 先にネットワーク上の出現ノード（次数上位）を特定し、表示対象企業から優先的に時価総額・ドメインを更新する
+    prelim_network, _ = build_from_extracted(
+        all_filings,
+        master=master,
+        market_cache=load_market_cache(market_cache_path),
+        alias_overrides=aliases if isinstance(aliases, dict) else None,
+        llm_relations=llm_relations if isinstance(llm_relations, list) else None,
+    )
+    priority_codes = [n["code"] for n in prelim_network["nodes"]]
+    priority_set = set(priority_codes)
+    rest_codes = [
+        r.code
+        for r in sorted(
+            master.values(),
+            key=lambda r: (0 if r.market == "プライム" else 1 if r.market == "スタンダード" else 2, -r.capital_trillion, r.code),
+        )
+        if r.code not in priority_set
+    ]
+    ordered_codes = priority_codes + rest_codes
+
+    # Step 4: 時価総額＆公式サイトドメイン補完（ネットワーク出現企業を最優先）
+    if not args.skip_market_cap:
+        print(
+            f"[Step 4/5] 時価総額・ドメインを更新中（ネットワーク上位 {len(priority_codes)} 社を優先、最大 {args.market_cap_limit} 社）...",
+            file=sys.stderr,
+        )
+        market_cache = update_market_caps(
+            ordered_codes,
+            market_cache_path,
+            limit=args.market_cap_limit,
+            ttl_days=args.market_cap_ttl_days,
+        )
+    else:
+        market_cache = load_market_cache(market_cache_path)
+
+    # Step 5: 最新時価総額・ドメインを反映して分割静的JSON生成（public/data/）
     network, details_map = build_from_extracted(
         all_filings,
         master=master,

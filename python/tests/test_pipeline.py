@@ -270,6 +270,64 @@ class TestPipeline(unittest.TestCase):
             self.assertIn("6902", detail_6)
             self.assertEqual(detail_6["6902"]["docId"], "S100TEST")
 
+    def test_two_row_colspan_thousand_yen_cross_shareholding(self) -> None:
+        html = """<!DOCTYPE html><html><body>
+        <table>
+          <tr>
+            <th rowspan="2">銘柄</th>
+            <th colspan="2">当事業年度</th>
+            <th colspan="2">前事業年度</th>
+            <th rowspan="2">保有目的</th>
+          </tr>
+          <tr>
+            <th>株式数（株）</th>
+            <th>貸借対照表計上額（千円）</th>
+            <th>株式数（株）</th>
+            <th>貸借対照表計上額（千円）</th>
+          </tr>
+          <tr>
+            <td>トヨタ自動車株式会社</td>
+            <td>500,000</td>
+            <td>1,500,000</td>
+            <td>500,000</td>
+            <td>1,400,000</td>
+            <td>取引関係の維持</td>
+          </tr>
+        </table>
+        </body></html>"""
+        from bs4 import BeautifulSoup
+        from parse_xbrl import extract_cross_shareholdings
+
+        rels = extract_cross_shareholdings([BeautifulSoup(html, "lxml")])
+        self.assertEqual(len(rels), 1)
+        # 1,500,000 千円 = 1,500.0 百万円（株式数 500,000 や百万円誤認 1,500,000 にならないこと）
+        self.assertEqual(rels[0].amount_million_yen, 1500.0)
+        self.assertEqual(rels[0].shares, 500000)
+
+    def test_ops_helper_merge_and_aliases(self) -> None:
+        from ops_helper import aliases_to_csv, csv_to_aliases, merge_llm_relations
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            llm_path = tmp_path / "llm.json"
+            added, total = merge_llm_relations(
+                [
+                    {"source": "7203", "target": "6758", "kind": "資本・業務提携", "value": 75, "detail": "車載協業"},
+                    {"source": "6758", "target": "7203", "kind": "資本・業務提携", "value": 70, "detail": "重複ペア"},
+                ],
+                llm_path,
+            )
+            self.assertEqual(added, 1)
+            self.assertEqual(total, 1)
+
+            aliases_path = tmp_path / "aliases.json"
+            aliases_path.write_text(json.dumps({"三菱UFJ銀行": "8306"}, ensure_ascii=False), encoding="utf-8")
+            csv_path = tmp_path / "aliases.csv"
+            aliases_to_csv(aliases_path, csv_path)
+            csv_path.write_text(csv_path.read_text(encoding="utf-8") + "三井住友銀行,8316\n", encoding="utf-8")
+            count = csv_to_aliases(csv_path, aliases_path)
+            self.assertEqual(count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

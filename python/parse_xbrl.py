@@ -159,6 +159,44 @@ def _table_rows(table: Tag) -> list[list[str]]:
     return rows
 
 
+def _expand_table_grid(table: Tag) -> list[list[str]]:
+    """rowspan / colspan を展開した2次元グリッドを返す（多段ヘッダの列ズレ防止）。"""
+    grid: list[list[str]] = []
+    spans: dict[tuple[int, int], str] = {}
+
+    for r_idx, tr in enumerate(table.find_all("tr")):
+        row: list[str] = []
+        c_idx = 0
+        for cell in tr.find_all(["th", "td"]):
+            while (r_idx, c_idx) in spans:
+                row.append(spans.pop((r_idx, c_idx)))
+                c_idx += 1
+
+            text = _norm(cell.get_text(" ", strip=True))
+            try:
+                colspan = max(1, min(12, int(cell.get("colspan") or 1)))
+            except ValueError:
+                colspan = 1
+            try:
+                rowspan = max(1, min(12, int(cell.get("rowspan") or 1)))
+            except ValueError:
+                rowspan = 1
+
+            for dc in range(colspan):
+                row.append(text)
+                for dr in range(1, rowspan):
+                    spans[(r_idx + dr, c_idx + dc)] = text
+            c_idx += colspan
+
+        while (r_idx, c_idx) in spans:
+            row.append(spans.pop((r_idx, c_idx)))
+            c_idx += 1
+
+        if any(row):
+            grid.append(row)
+    return grid
+
+
 def _preceding_context_text(tag: Tag, max_chars: int = 300) -> str:
     """テーブル直前の見出しや単位表記（「単位：百万円」等）を取得する。"""
     chunks: list[str] = []
@@ -214,7 +252,7 @@ def extract_customers_from_tables(soups: list[BeautifulSoup]) -> list[CustomerRe
 
     for soup in soups:
         for table in soup.find_all("table"):
-            rows = _table_rows(table)
+            rows = _expand_table_grid(table)
             if len(rows) < 2:
                 continue
             header_text = " ".join(rows[0])
@@ -237,7 +275,8 @@ def extract_customers_from_tables(soups: list[BeautifulSoup]) -> list[CustomerRe
                 None,
             )
             col_ratio = next((i for i, h in enumerate(header) if any(k in h for k in ("割合", "構成比", "%"))), None)
-            mult = _detect_unit_multiplier(combined_hint)
+            amount_hint = (header[col_amount] if col_amount is not None else "") + " " + combined_hint
+            mult = _detect_unit_multiplier(amount_hint)
 
             for row in rows[1:]:
                 if col_name >= len(row):
@@ -248,7 +287,6 @@ def extract_customers_from_tables(soups: list[BeautifulSoup]) -> list[CustomerRe
                 amount_raw = _parse_number(row[col_amount]) if col_amount is not None and col_amount < len(row) else None
                 ratio_raw = _parse_number(row[col_ratio]) if col_ratio is not None and col_ratio < len(row) else None
                 amount_m = round(amount_raw * mult, 1) if amount_raw is not None else None
-                # 割合が100超のときは誤パースなので除外
                 ratio = ratio_raw if (ratio_raw is not None and 0 < ratio_raw <= 100) else None
                 if amount_m is None and ratio is None:
                     continue
@@ -270,13 +308,13 @@ def extract_customers_from_tables(soups: list[BeautifulSoup]) -> list[CustomerRe
 
 
 def extract_cross_shareholdings(soups: list[BeautifulSoup]) -> list[ShareholdingRelation]:
-    """iXBRL内の「特定投資株式（政策保有株式）」テーブルを抽出する。"""
+    """iXBRL内の「特定投資株式（政策保有株式）」テーブルを抽出する（多段ヘッダ・千円/百万円単位対応）。"""
     relations: list[ShareholdingRelation] = []
     seen: set[str] = set()
 
     for soup in soups:
         for table in soup.find_all("table"):
-            rows = _table_rows(table)
+            rows = _expand_table_grid(table)
             if len(rows) < 2:
                 continue
             header_joined = " ".join(rows[0])
@@ -287,18 +325,44 @@ def extract_cross_shareholdings(soups: list[BeautifulSoup]) -> list[Shareholding
             if not ("銘柄" in header_joined and ("貸借対照表" in combined or "保有目的" in combined or "特定投資株式" in combined)):
                 continue
 
-            # 2段ヘッダ判定
+            # 2段ヘッダ（colspan/rowspan展開済み）を列ごとに結合して正確に列特定する
             data_start = 1
-            header = rows[0]
-            if len(rows) > 2 and any(k in " ".join(rows[1]) for k in ("株式数", "計上額", "当事業年度")):
-                # 当事業年度の列を拾うため結合せず2行目を補助に使う
+            max_cols = max(len(rows[0]), len(rows[1]) if len(rows) > 1 else 0)
+            is_two_row_header = len(rows) > 2 and any(
+                k in " ".join(rows[1]) for k in ("株式数", "計上額", "貸借対照表", "当事業年度", "百万円", "千円")
+            )
+            if is_two_row_header:
                 data_start = 2
+                merged_header = [
+                    f"{rows[0][c] if c < len(rows[0]) else ''} {rows[1][c] if c < len(rows[1]) else ''}".strip()
+                    for c in range(max_cols)
+                ]
+            else:
+                merged_header = list(rows[0])
 
-            col_name = next((i for i, h in enumerate(header) if "銘柄" in h), 0)
-            col_amount = next((i for i, h in enumerate(header) if "貸借対照表" in h or "計上額" in h), None)
-            col_shares = next((i for i, h in enumerate(header) if "株式数" in h), None)
-            col_purpose = next((i for i, h in enumerate(header) if "保有目的" in h or "目的" in h), None)
-            mult = _detect_unit_multiplier(combined)
+            col_name = next((i for i, h in enumerate(merged_header) if "銘柄" in h), 0)
+            # 当事業年度の貸借対照表計上額を最優先で取得（前事業年度より左にある最初の列）
+            col_amount = next(
+                (i for i, h in enumerate(merged_header) if ("貸借対照表" in h or "計上額" in h) and "前事業年度" not in h),
+                None,
+            )
+            if col_amount is None:
+                col_amount = next(
+                    (i for i, h in enumerate(merged_header) if "貸借対照表" in h or "計上額" in h),
+                    None,
+                )
+            col_shares = next(
+                (i for i, h in enumerate(merged_header) if "株式数" in h and "前事業年度" not in h),
+                next((i for i, h in enumerate(merged_header) if "株式数" in h), None),
+            )
+            col_purpose = next((i for i, h in enumerate(merged_header) if "保有目的" in h or "目的" in h), None)
+
+            # 金額列自身の見出し単位（「千円」「百万円」「億円」）を最優先で判定する
+            amount_col_header = merged_header[col_amount] if col_amount is not None else ""
+            if any(u in amount_col_header for u in ("億円", "百万円", "千円")):
+                mult = _detect_unit_multiplier(amount_col_header)
+            else:
+                mult = _detect_unit_multiplier(combined)
 
             for row in rows[data_start:]:
                 if col_name >= len(row):
@@ -306,23 +370,21 @@ def extract_cross_shareholdings(soups: list[BeautifulSoup]) -> list[Shareholding
                 target_name = row[col_name]
                 if not target_name or is_excluded_counterparty(target_name):
                     continue
-                # 小計・合計・銘柄数ヘッダ行をスキップ
-                if any(k in target_name for k in ("銘柄数", "合計", "計上額", "該当事項")):
+                if any(k in target_name for k in ("銘柄数", "合計", "計上額", "該当事項", "銘柄")):
                     continue
                 if target_name in seen:
                     continue
 
                 amount_m: float | None = None
                 if col_amount is not None and col_amount < len(row):
-                    val = _parse_number(row[col_amount])
-                    if val is not None and val > 0:
-                        amount_m = round(val * mult, 1)
-                else:
-                    # 列位置がずれる多段ヘッダでは行内の2〜4列目から最初の金額らしき値を取得
-                    nums = [_parse_number(c) for c in row[1:4]]
-                    valid_nums = [n for n in nums if n is not None and n > 0]
-                    if len(valid_nums) >= 2:
-                        amount_m = round(valid_nums[1] * mult, 1)
+                    raw_cell = row[col_amount]
+                    if "株" not in raw_cell:
+                        val = _parse_number(raw_cell)
+                        if val is not None and val > 0:
+                            scaled = round(val * mult, 1)
+                            # 単一政策保有の現実上限（10兆円）を超える異常値（株数誤認等）は除外
+                            if scaled <= 10_000_000:
+                                amount_m = scaled
 
                 shares: int | None = None
                 if col_shares is not None and col_shares < len(row):
