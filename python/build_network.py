@@ -139,6 +139,8 @@ def build_from_extracted(
                 "logo": logo_url(c),
                 "logoText": _make_logo_text(name, c),
             }
+            if rec and rec.sector33:
+                node_obj["subSector"] = rec.sector33
             if rec and rec.market:
                 node_obj["market"] = rec.market
             if rec and rec.edinet_code:
@@ -369,6 +371,7 @@ def write_split_bundle(
                 "code": n["code"],
                 "name": n["name"],
                 "sector": n["sector"],
+                "subSector": n.get("subSector"),
                 "market": n.get("market"),
                 "marketCap": n["marketCap"],
                 "capital": n["capital"],
@@ -389,6 +392,7 @@ def write_split_bundle(
                     "code": code,
                     "name": rec.name,
                     "sector": rec.sector,
+                    "subSector": rec.sector33 or None,
                     "market": rec.market or None,
                     "marketCap": round(float(m_info.get("marketCap") or rec.market_cap_trillion or 0.0), 4),
                     "capital": round(float(rec.capital_trillion or 0.0), 4),

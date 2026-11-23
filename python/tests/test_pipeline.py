@@ -238,6 +238,16 @@ class TestPipeline(unittest.TestCase):
             self.assertEqual(toyota["marketCap"], 48.0)
             self.assertEqual(toyota["domain"], "toyota.co.jp")
             self.assertEqual(toyota["market"], "プライム")
+            self.assertEqual(toyota["subSector"], "輸送用機器")
+
+            from company_master import SECTOR33_TO_GROUP, map_sector_group
+
+            self.assertEqual(len(SECTOR33_TO_GROUP), 33)
+            self.assertEqual(map_sector_group("機械"), "自動車・モビリティ")
+            self.assertEqual(map_sector_group("小売業"), "商社・エネルギー")
+            self.assertEqual(map_sector_group("海運業"), "倉庫・運輸")
+            self.assertEqual(map_sector_group("サービス業"), "サービス業")
+            self.assertEqual(map_sector_group("繊維製品"), "消費・医薬・食品")
 
             link_kinds = {l["kind"] for l in network["links"]}
             self.assertIn("主要顧客・供給", link_kinds)

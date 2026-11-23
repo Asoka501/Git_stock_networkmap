@@ -22,6 +22,7 @@ import {
 import { buildIframeSnippet, parseEmbedConfig } from './embedConfig'
 import { escapeHtml, extractCoreSubgraph, extractHopSubgraph, linkEndId } from './graphUtils'
 import { LogoCache } from './logoLoader'
+import { getNodeSectorColor, getSectorStyle, sortSectorsByOrder } from './sectorPalette'
 import type {
   DataMeta,
   IndexEntry,
@@ -34,42 +35,6 @@ import type {
 } from './types'
 
 export type { NetNode, NetLink, NetworkData }
-
-// ===== セクターパレット =====
-interface SectorStyle {
-  color: string
-  bg: string
-  text: string
-}
-const SECTORS: Record<string, SectorStyle> = {
-  '自動車・モビリティ': { color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.16)', text: '#7dd3fc' },
-  '半導体・電機': { color: '#a78bfa', bg: 'rgba(167, 139, 250, 0.16)', text: '#c4b5fd' },
-  '商社・エネルギー': { color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.16)', text: '#fcd34d' },
-  '通信・IT': { color: '#34d399', bg: 'rgba(52, 211, 153, 0.16)', text: '#6ee7b7' },
-  '金融': { color: '#f472b6', bg: 'rgba(244, 114, 182, 0.16)', text: '#f9a8d4' },
-  '素材・重工': { color: '#fb923c', bg: 'rgba(251, 146, 60, 0.16)', text: '#fdba74' },
-}
-const EXTRA_PALETTE = [
-  '#22d3ee',
-  '#c084fc',
-  '#facc15',
-  '#4ade80',
-  '#fb7185',
-  '#f97316',
-  '#60a5fa',
-  '#a3e635',
-  '#e879f9',
-  '#2dd4bf',
-]
-let extraIdx = 0
-
-function getSectorStyle(sector: string): SectorStyle {
-  if (!SECTORS[sector]) {
-    const c = EXTRA_PALETTE[extraIdx++ % EXTRA_PALETTE.length]
-    SECTORS[sector] = { color: c, bg: 'rgba(148,163,184,0.16)', text: c }
-  }
-  return SECTORS[sector]
-}
 
 // ===== URL埋め込み設定 =====
 const config = parseEmbedConfig()
@@ -105,6 +70,7 @@ const state = {
   hoverNodeId: null as string | null,
   autoRotate: config.rotate,
   rotateAngle: 0,
+  zoomSubSectorMode: false,
   highlightNodes: new Set<string>(),
   highlightLinks: new Set<NetLink>(),
   visibleNodeCount: 0,
@@ -116,6 +82,7 @@ const ctx = overlayCanvas.getContext('2d') as CanvasRenderingContext2D
 const tooltipEl = document.getElementById('hover-tooltip') as HTMLElement
 const loadingBadge = document.getElementById('loading-badge') as HTMLElement
 const loadingText = document.getElementById('loading-text') as HTMLElement
+const zoomSubSectorBadge = document.getElementById('zoom-subsector-badge') as HTMLElement | null
 
 let viewportWidth = container.clientWidth || window.innerWidth
 let viewportHeight = container.clientHeight || window.innerHeight
@@ -153,7 +120,7 @@ function isHolding(id: string): boolean {
 }
 
 function getNodeColor(node: NetNode): string {
-  const base = getSectorStyle(node.sector).color
+  const base = getNodeSectorColor(node.sector, node.subSector, state.zoomSubSectorMode)
   if (state.selectedNodeId) {
     if (node.id === state.selectedNodeId) return '#ffffff'
     if (state.highlightNodes.has(node.id)) return base
@@ -200,9 +167,14 @@ function formatNodeTooltip(node: NetNode): string {
   const holdTag = isHolding(node.id)
     ? '<span style="margin-left:6px;padding:1px 5px;border-radius:4px;background:rgba(245,158,11,0.22);color:#fcd34d;font-size:10px;">★ 保有</span>'
     : ''
+  const sectorColor = getNodeSectorColor(node.sector, node.subSector, state.zoomSubSectorMode)
+  const sectorLabel =
+    node.subSector && node.subSector !== node.sector
+      ? `${node.sector} › ${node.subSector}`
+      : node.sector
   return (
     `<div style="font-weight:700;">${escapeHtml(node.name)} <span style="color:#94a3b8;font-weight:400;">(${escapeHtml(node.code)})</span>${holdTag}</div>` +
-    `<div style="color:${getSectorStyle(node.sector).color};font-size:11px;">${escapeHtml(node.sector)}</div>` +
+    `<div style="color:${sectorColor};font-size:11px;">${escapeHtml(sectorLabel)}</div>` +
     `<div style="color:#cbd5e1;font-size:11px;margin-top:2px;">${escapeHtml(valText)}</div>`
   )
 }
@@ -294,7 +266,7 @@ function syncCatalogFromData(data: NetworkData, resetSelections = true) {
     if (l.sourceType) hasSource = true
   }
 
-  state.availableSectors = Array.from(sectorSet)
+  state.availableSectors = sortSectorsByOrder(sectorSet)
   state.availableKinds = Array.from(kindSet)
   state.hasSourceTypes = hasSource
 
@@ -541,9 +513,10 @@ function clearSelection() {
 async function renderInspector(node: NetNode) {
   const panel = document.getElementById('inspector-panel') as HTMLElement
   const style = getSectorStyle(node.sector)
+  const accentColor = getNodeSectorColor(node.sector, node.subSector, true)
 
   const logoEl = document.getElementById('ins-logo') as HTMLElement
-  logoEl.style.background = `linear-gradient(135deg, ${style.color}, #e2e8f0)`
+  logoEl.style.background = `linear-gradient(135deg, ${accentColor}, #e2e8f0)`
   logoCache.renderInto(logoEl, node)
 
   ;(document.getElementById('ins-code') as HTMLElement).textContent = node.code
@@ -558,7 +531,8 @@ async function renderInspector(node: NetNode) {
   }
 
   const secEl = document.getElementById('ins-sector') as HTMLElement
-  secEl.textContent = node.sector
+  secEl.textContent =
+    node.subSector && node.subSector !== node.sector ? `${node.sector} › ${node.subSector}` : node.sector
   secEl.style.backgroundColor = style.bg
   secEl.style.color = style.text
   ;(document.getElementById('ins-name') as HTMLElement).textContent = node.name
@@ -742,6 +716,17 @@ function animate() {
   const { nodes } = graph.graphData() as unknown as NetworkData
   const camPos = camera.position
 
+  // ズームイン連動：一定距離より近づくと大分類11色→中分類（33業種）近似色へ自動切替（ヒステリシス付き）
+  const controls = graph.controls() as unknown as { target?: { x: number; y: number; z: number } } | undefined
+  const target = controls?.target ?? { x: 0, y: 0, z: 0 }
+  const camDist = Math.hypot(camPos.x - target.x, camPos.y - target.y, camPos.z - target.z)
+  const nextSubMode = state.zoomSubSectorMode ? camDist < 285 : camDist < 245
+  if (nextSubMode !== state.zoomSubSectorMode) {
+    state.zoomSubSectorMode = nextSubMode
+    zoomSubSectorBadge?.classList.toggle('hidden', !nextSubMode)
+    graph.nodeColor((n) => getNodeColor(n as NetNode))
+  }
+
   interface Candidate {
     node: NetNode
     dist: number
@@ -810,7 +795,7 @@ function animate() {
 
   for (const c of candidates) {
     const { node: n, dist, screen, isSelected, isNeighbor, isHovered, isHold, showLogo } = c
-    const style = getSectorStyle(n.sector)
+    const nodeRingColor = getNodeSectorColor(n.sector, n.subSector, state.zoomSubSectorMode || dist < 245)
     const dimmed = !!state.selectedNodeId && !isSelected && !isNeighbor && !isHold
     const baseAlpha = dimmed ? 0.16 : 0.95
 
@@ -839,7 +824,7 @@ function animate() {
         ctx.fillStyle = '#0b1222'
         ctx.fill()
         ctx.lineWidth = isSelected ? 2.5 : isHold ? 2.2 : 1.8
-        ctx.strokeStyle = isSelected ? '#ffffff' : isHold ? '#fbbf24' : style.color
+        ctx.strokeStyle = isSelected ? '#ffffff' : isHold ? '#fbbf24' : nodeRingColor
         ctx.stroke()
 
         const logoEntry = getLogoImage(n)
