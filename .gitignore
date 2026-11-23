@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Secrets / local config
+.env
+.env.*
+
+# Raw EDINET downloads (生XBRLはリポジトリに入れない)
+*.zip
+data/raw/

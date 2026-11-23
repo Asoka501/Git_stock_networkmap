@@ -1,0 +1,564 @@
+{
+  "nodes": [
+    {
+      "id": "7203",
+      "code": "7203",
+      "name": "トヨタ自動車",
+      "sector": "自動車・モビリティ",
+      "marketCap": 48,
+      "capital": 0.64,
+      "logo": "https://logoapi.sh/ticker/7203.svg",
+      "logoText": "TM",
+      "excerpt": "【主要な顧客・仕入先】グループ部品メーカーとの強固なサプライチェーンを構築。電動化・車載ソフトウェア領域で半導体および通信大手との協業を拡大。"
+    },
+    {
+      "id": "6902",
+      "code": "6902",
+      "name": "デンソー",
+      "sector": "自動車・モビリティ",
+      "marketCap": 7.5,
+      "capital": 0.19,
+      "logo": "https://logoapi.sh/ticker/6902.svg",
+      "logoText": "DN",
+      "excerpt": "【主要な顧客ごとの情報】トヨタ自動車向け売上が全体の中核を占める。車載半導体の安定調達に向け国内半導体メーカーと共同開発を推進。"
+    },
+    {
+      "id": "7259",
+      "code": "7259",
+      "name": "アイシン",
+      "sector": "自動車・モビリティ",
+      "marketCap": 1.6,
+      "capital": 0.05,
+      "logo": "https://logoapi.sh/ticker/7259.svg",
+      "logoText": "AI",
+      "excerpt": "【主要な顧客ごとの情報】駆動系ユニットを主要完成車メーカーへ供給。EV向けeAxleの共同開発が事業リスク・機会の両面で重要。"
+    },
+    {
+      "id": "7267",
+      "code": "7267",
+      "name": "ホンダ",
+      "sector": "自動車・モビリティ",
+      "marketCap": 8.2,
+      "capital": 0.09,
+      "logo": "https://logoapi.sh/ticker/7267.svg",
+      "logoText": "HD",
+      "excerpt": "【事業等のリスク】次世代EVおよび車載エンタメ領域で電機大手との合弁を推進。サプライチェーンの半導体調達リスクへの対応を強化。"
+    },
+    {
+      "id": "6201",
+      "code": "6201",
+      "name": "豊田自動織機",
+      "sector": "自動車・モビリティ",
+      "marketCap": 4.1,
+      "capital": 0.08,
+      "logo": "https://logoapi.sh/ticker/6201.svg",
+      "logoText": "TI",
+      "excerpt": "【主要な顧客ごとの情報】車両受託生産およびカーエアコン用コンプレッサーでグループ内取引比重が高い。"
+    },
+    {
+      "id": "6758",
+      "code": "6758",
+      "name": "ソニーグループ",
+      "sector": "半導体・電機",
+      "marketCap": 18.5,
+      "capital": 0.88,
+      "logo": "https://logoapi.sh/ticker/6758.svg",
+      "logoText": "SN",
+      "excerpt": "【事業等のリスク】イメージセンサー製造の設備投資および先端半導体ファウンドリとの協業が成長の鍵。モビリティ領域で自動車大手と連携。"
+    },
+    {
+      "id": "8035",
+      "code": "8035",
+      "name": "東京エレクトロン",
+      "sector": "半導体・電機",
+      "marketCap": 14.2,
+      "capital": 0.06,
+      "logo": "https://logoapi.sh/ticker/8035.svg",
+      "logoText": "TE",
+      "excerpt": "【主要な顧客ごとの情報】国内外の先端半導体メーカーへ製造装置を供給。素材メーカーとの次世代微細化プロセス協業が拡大。"
+    },
+    {
+      "id": "6723",
+      "code": "6723",
+      "name": "ルネサス",
+      "sector": "半導体・電機",
+      "marketCap": 4.6,
+      "capital": 0.15,
+      "logo": "https://logoapi.sh/ticker/6723.svg",
+      "logoText": "RN",
+      "excerpt": "【主要な顧客ごとの情報】車載マイコン・パワー半導体で国内自動車・電装大手向けが主要柱。"
+    },
+    {
+      "id": "6501",
+      "code": "6501",
+      "name": "日立製作所",
+      "sector": "半導体・電機",
+      "marketCap": 16.8,
+      "capital": 0.46,
+      "logo": "https://logoapi.sh/ticker/6501.svg",
+      "logoText": "HT",
+      "excerpt": "【事業等のリスク】社会インフラDX（Lumada）を軸に通信・金融・エネルギー各社と共創プロジェクトを展開。"
+    },
+    {
+      "id": "6861",
+      "code": "6861",
+      "name": "キーエンス",
+      "sector": "半導体・電機",
+      "marketCap": 15.6,
+      "capital": 0.03,
+      "logo": "https://logoapi.sh/ticker/6861.svg",
+      "logoText": "KY",
+      "excerpt": "【主要な顧客ごとの情報】FAセンサーを自動車・半導体製造ラインへ幅広く納入。特定1社への過度な依存は限定的。"
+    },
+    {
+      "id": "6981",
+      "code": "6981",
+      "name": "村田製作所",
+      "sector": "半導体・電機",
+      "marketCap": 5.8,
+      "capital": 0.07,
+      "logo": "https://logoapi.sh/ticker/6981.svg",
+      "logoText": "MR",
+      "excerpt": "【事業等のリスク】積層セラミックコンデンサ（MLCC）の車載・通信端末向け需要が収益を牽引。"
+    },
+    {
+      "id": "8058",
+      "code": "8058",
+      "name": "三菱商事",
+      "sector": "商社・エネルギー",
+      "marketCap": 12.8,
+      "capital": 0.2,
+      "logo": "https://logoapi.sh/ticker/8058.svg",
+      "logoText": "MC",
+      "excerpt": "【事業等のリスク】資源・エネルギーからモビリティ・DXまで幅広い事業投資を展開。金融・重工グループとの連携が強い。"
+    },
+    {
+      "id": "8031",
+      "code": "8031",
+      "name": "三井物産",
+      "sector": "商社・エネルギー",
+      "marketCap": 10.6,
+      "capital": 0.34,
+      "logo": "https://logoapi.sh/ticker/8031.svg",
+      "logoText": "MB",
+      "excerpt": "【事業等のリスク】LNG・金属資源権益を核に、脱炭素エネルギー・インフラ領域で国内メーカーや金融機関と共同出資。"
+    },
+    {
+      "id": "8001",
+      "code": "8001",
+      "name": "伊藤忠商事",
+      "sector": "商社・エネルギー",
+      "marketCap": 11.4,
+      "capital": 0.25,
+      "logo": "https://logoapi.sh/ticker/8001.svg",
+      "logoText": "IT",
+      "excerpt": "【事業等のリスク】非資源・生活消費分野とDXに強み。通信大手との資本業務提携を通じたリテールデータ活用を推進。"
+    },
+    {
+      "id": "5020",
+      "code": "5020",
+      "name": "ENEOS",
+      "sector": "商社・エネルギー",
+      "marketCap": 2.5,
+      "capital": 0.1,
+      "logo": "https://logoapi.sh/ticker/5020.svg",
+      "logoText": "EN",
+      "excerpt": "【事業等のリスク】燃料供給網に加え、水素・次世代エネルギー供給で自動車・商社とのコンソーシアムを形成。"
+    },
+    {
+      "id": "9432",
+      "code": "9432",
+      "name": "NTT",
+      "sector": "通信・IT",
+      "marketCap": 14.5,
+      "capital": 0.94,
+      "logo": "https://logoapi.sh/ticker/9432.svg",
+      "logoText": "NT",
+      "excerpt": "【事業等のリスク】次世代光通信基盤（IOWN）の社会実装に向け、電機・半導体・自動車大手との共同実証を推進。"
+    },
+    {
+      "id": "9984",
+      "code": "9984",
+      "name": "ソフトバンクG",
+      "sector": "通信・IT",
+      "marketCap": 13.2,
+      "capital": 0.24,
+      "logo": "https://logoapi.sh/ticker/9984.svg",
+      "logoText": "SB",
+      "excerpt": "【事業等のリスク】AI・半導体エコシステムへの戦略投資を展開。国内通信・金融・モビリティ領域との連携を強化。"
+    },
+    {
+      "id": "9433",
+      "code": "9433",
+      "name": "KDDI",
+      "sector": "通信・IT",
+      "marketCap": 9.8,
+      "capital": 0.14,
+      "logo": "https://logoapi.sh/ticker/9433.svg",
+      "logoText": "KD",
+      "excerpt": "【主要な顧客・提携】コネクティッドカー通信基盤で自動車大手と資本業務提携。商社とのリテールDX協業も進展。"
+    },
+    {
+      "id": "6702",
+      "code": "6702",
+      "name": "富士通",
+      "sector": "通信・IT",
+      "marketCap": 5.4,
+      "capital": 0.32,
+      "logo": "https://logoapi.sh/ticker/6702.svg",
+      "logoText": "FJ",
+      "excerpt": "【主要な顧客ごとの情報】メガバンクの勘定系システムや官公庁・製造業向け基幹DXを長期受託。"
+    },
+    {
+      "id": "8306",
+      "code": "8306",
+      "name": "三菱UFJ FG",
+      "sector": "金融",
+      "marketCap": 20.5,
+      "capital": 2.14,
+      "logo": "https://logoapi.sh/ticker/8306.svg",
+      "logoText": "MU",
+      "excerpt": "【事業等のリスク】国内最大級の与信ポートフォリオを有し、商社・自動車・重工のグローバル案件へシンジケートローンを提供。"
+    },
+    {
+      "id": "8316",
+      "code": "8316",
+      "name": "三井住友FG",
+      "sector": "金融",
+      "marketCap": 14.8,
+      "capital": 2.34,
+      "logo": "https://logoapi.sh/ticker/8316.svg",
+      "logoText": "SM",
+      "excerpt": "【事業等のリスク】法人向けプロジェクトファイナンスとデジタル金融基盤を強化。IT・通信大手との決済連携を拡大。"
+    },
+    {
+      "id": "8411",
+      "code": "8411",
+      "name": "みずほFG",
+      "sector": "金融",
+      "marketCap": 8.6,
+      "capital": 2.26,
+      "logo": "https://logoapi.sh/ticker/8411.svg",
+      "logoText": "MZ",
+      "excerpt": "【事業等のリスク】基幹系IT刷新と並行し、エネルギー転換・半導体投資向けの大型協調融資を主導。"
+    },
+    {
+      "id": "5401",
+      "code": "5401",
+      "name": "日本製鉄",
+      "sector": "素材・重工",
+      "marketCap": 3.4,
+      "capital": 0.42,
+      "logo": "https://logoapi.sh/ticker/5401.svg",
+      "logoText": "NS",
+      "excerpt": "【主要な顧客ごとの情報】自動車向けハイテン材・電磁鋼板が中核。商社経由の原料調達とグリーン鉄鋼の共同開発を推進。"
+    },
+    {
+      "id": "4063",
+      "code": "4063",
+      "name": "信越化学工業",
+      "sector": "素材・重工",
+      "marketCap": 12.1,
+      "capital": 0.12,
+      "logo": "https://logoapi.sh/ticker/4063.svg",
+      "logoText": "SC",
+      "excerpt": "【主要な顧客ごとの情報】半導体シリコンウエハの世界首位級サプライヤー。国内外の半導体・装置大手と密接に連携。"
+    }
+  ],
+  "links": [
+    {
+      "source": "7203",
+      "target": "6902",
+      "value": 98,
+      "kind": "主要顧客・供給",
+      "detail": "車載電装・パワー半導体の中核サプライヤー"
+    },
+    {
+      "source": "7203",
+      "target": "7259",
+      "value": 92,
+      "kind": "主要顧客・供給",
+      "detail": "駆動系・eAxleユニットの主要供給関係"
+    },
+    {
+      "source": "7203",
+      "target": "6201",
+      "value": 88,
+      "kind": "資本・業務提携",
+      "detail": "車両受託生産・コンプレッサー供給"
+    },
+    {
+      "source": "7203",
+      "target": "9433",
+      "value": 76,
+      "kind": "資本・業務提携",
+      "detail": "コネクティッドカー通信基盤の共同構築"
+    },
+    {
+      "source": "7203",
+      "target": "9432",
+      "value": 72,
+      "kind": "共同開発・DX",
+      "detail": "スマートシティ・次世代通信基盤での協業"
+    },
+    {
+      "source": "7203",
+      "target": "5401",
+      "value": 84,
+      "kind": "主要顧客・供給",
+      "detail": "車体向け高張力鋼板・電磁鋼板の大型取引"
+    },
+    {
+      "source": "7203",
+      "target": "6723",
+      "value": 74,
+      "kind": "主要顧客・供給",
+      "detail": "車載マイコンの長期安定調達"
+    },
+    {
+      "source": "7203",
+      "target": "8316",
+      "value": 68,
+      "kind": "金融・融資",
+      "detail": "グローバル販売金融・電動化投資支援"
+    },
+    {
+      "source": "7203",
+      "target": "8306",
+      "value": 70,
+      "kind": "金融・融資",
+      "detail": "主要取引銀行・海外プロジェクト協調融資"
+    },
+    {
+      "source": "7203",
+      "target": "5020",
+      "value": 64,
+      "kind": "共同開発・DX",
+      "detail": "水素ステーション・カーボンニュートラル燃料"
+    },
+    {
+      "source": "6902",
+      "target": "6723",
+      "value": 82,
+      "kind": "共同開発・DX",
+      "detail": "次世代車載SoC・パワー半導体の共同設計"
+    },
+    {
+      "source": "6902",
+      "target": "6981",
+      "value": 70,
+      "kind": "主要顧客・供給",
+      "detail": "車載向け高信頼性MLCC部品の調達"
+    },
+    {
+      "source": "6902",
+      "target": "6861",
+      "value": 58,
+      "kind": "主要顧客・供給",
+      "detail": "自動化生産ライン向けセンサー導入"
+    },
+    {
+      "source": "7267",
+      "target": "6758",
+      "value": 86,
+      "kind": "資本・業務提携",
+      "detail": "次世代EV・車載エンタメ合弁事業"
+    },
+    {
+      "source": "7267",
+      "target": "6723",
+      "value": 65,
+      "kind": "主要顧客・供給",
+      "detail": "車載制御半導体の供給"
+    },
+    {
+      "source": "7267",
+      "target": "5401",
+      "value": 62,
+      "kind": "主要顧客・供給",
+      "detail": "自動車用鋼板の継続取引"
+    },
+    {
+      "source": "6758",
+      "target": "8035",
+      "value": 78,
+      "kind": "主要顧客・供給",
+      "detail": "イメージセンサー工場向け製造装置"
+    },
+    {
+      "source": "6758",
+      "target": "6981",
+      "value": 74,
+      "kind": "主要顧客・供給",
+      "detail": "モバイル・センサー向け電子部品"
+    },
+    {
+      "source": "6758",
+      "target": "4063",
+      "value": 72,
+      "kind": "主要顧客・供給",
+      "detail": "高品質シリコンウエハの調達"
+    },
+    {
+      "source": "6758",
+      "target": "9432",
+      "value": 55,
+      "kind": "共同開発・DX",
+      "detail": "エンタメ・光通信技術の共同検証"
+    },
+    {
+      "source": "8035",
+      "target": "4063",
+      "value": 85,
+      "kind": "共同開発・DX",
+      "detail": "先端微細化プロセス・材料検証の協業"
+    },
+    {
+      "source": "8035",
+      "target": "6861",
+      "value": 64,
+      "kind": "主要顧客・供給",
+      "detail": "精密計測・検査センサーの採用"
+    },
+    {
+      "source": "6723",
+      "target": "4063",
+      "value": 78,
+      "kind": "主要顧客・供給",
+      "detail": "車載向けシリコンウエハ供給"
+    },
+    {
+      "source": "6501",
+      "target": "9432",
+      "value": 75,
+      "kind": "共同開発・DX",
+      "detail": "社会インフラ・クラウド基盤の共創"
+    },
+    {
+      "source": "6501",
+      "target": "8306",
+      "value": 72,
+      "kind": "共同開発・DX",
+      "detail": "金融DX・大規模システム運用"
+    },
+    {
+      "source": "6501",
+      "target": "8411",
+      "value": 66,
+      "kind": "金融・融資",
+      "detail": "GX・インフラ案件の協調融資"
+    },
+    {
+      "source": "6501",
+      "target": "6861",
+      "value": 54,
+      "kind": "主要顧客・供給",
+      "detail": "スマート工場ソリューション連携"
+    },
+    {
+      "source": "8058",
+      "target": "8306",
+      "value": 90,
+      "kind": "金融・融資",
+      "detail": "グループ中核のグローバル事業投資・融資"
+    },
+    {
+      "source": "8058",
+      "target": "5020",
+      "value": 76,
+      "kind": "資本・業務提携",
+      "detail": "次世代エネルギー・SAF供給網の共同開発"
+    },
+    {
+      "source": "8058",
+      "target": "9433",
+      "value": 80,
+      "kind": "資本・業務提携",
+      "detail": "リテール・通信データ活用の共同事業"
+    },
+    {
+      "source": "8058",
+      "target": "5401",
+      "value": 72,
+      "kind": "主要顧客・供給",
+      "detail": "鉄鉱石・原料炭の長期供給チャネル"
+    },
+    {
+      "source": "8031",
+      "target": "8316",
+      "value": 86,
+      "kind": "金融・融資",
+      "detail": "資源・インフラ大型プロジェクト融資"
+    },
+    {
+      "source": "8031",
+      "target": "5401",
+      "value": 78,
+      "kind": "主要顧客・供給",
+      "detail": "鉄鋼原料権益および海外鋼材トレード"
+    },
+    {
+      "source": "8031",
+      "target": "5020",
+      "value": 66,
+      "kind": "共同開発・DX",
+      "detail": "LNG・脱炭素サプライチェーン連携"
+    },
+    {
+      "source": "8001",
+      "target": "9433",
+      "value": 70,
+      "kind": "共同開発・DX",
+      "detail": "デジタルマーケティング・決済データ連携"
+    },
+    {
+      "source": "8001",
+      "target": "8411",
+      "value": 74,
+      "kind": "金融・融資",
+      "detail": "国内リテール・非資源投資の主力取引行"
+    },
+    {
+      "source": "9984",
+      "target": "9432",
+      "value": 52,
+      "kind": "共同開発・DX",
+      "detail": "AIデータセンター・通信網の相互接続"
+    },
+    {
+      "source": "9984",
+      "target": "8411",
+      "value": 82,
+      "kind": "金融・融資",
+      "detail": "大型ファイナンス・成長投資支援"
+    },
+    {
+      "source": "9984",
+      "target": "8316",
+      "value": 68,
+      "kind": "金融・融資",
+      "detail": "デジタル金融・決済エコシステム連携"
+    },
+    {
+      "source": "6702",
+      "target": "8411",
+      "value": 88,
+      "kind": "主要顧客・供給",
+      "detail": "金融基幹システムの開発・長期保守"
+    },
+    {
+      "source": "6702",
+      "target": "8306",
+      "value": 74,
+      "kind": "主要顧客・供給",
+      "detail": "クラウド移行・セキュリティ基盤構築"
+    },
+    {
+      "source": "6702",
+      "target": "9432",
+      "value": 68,
+      "kind": "共同開発・DX",
+      "detail": "光伝送装置・5Gネットワーク共同開発"
+    }
+  ]
+}
