@@ -27,6 +27,7 @@ from company_master import (  # noqa: E402
     clean_sec_code,
     is_excluded_counterparty,
     normalize_company_name,
+    parse_edinet_codelist_csv,
 )
 from market_data import extract_domain  # noqa: E402
 from parse_xbrl import parse_zip  # noqa: E402
@@ -160,6 +161,19 @@ class TestPipeline(unittest.TestCase):
         self.assertTrue(is_excluded_counterparty("デンソー従業員持株会"))
         self.assertFalse(is_excluded_counterparty("トヨタ自動車株式会社"))
         self.assertEqual(extract_domain("https://www.toyota.co.jp/jpn/"), "toyota.co.jp")
+
+    def test_edinet_codelist_csv_parsing(self) -> None:
+        sample_csv = (
+            "ダウンロード実行日,2026-11-23\n"
+            "ＥＤＩＮＥＴコード,提出者種別,上場区分,連結の有無,資本金,決算日,提出者名,提出者名（英字）,提出者業種,証券コード\n"
+            "E02144,内国法人・組合,上場,有,635402,3月31日,トヨタ自動車株式会社,TOYOTA MOTOR CORPORATION,輸送用機器,72030\n"
+            "E99999,内国法人・組合,非上場,無,1000,3月31日,テスト非上場株式会社,TEST UNLISTED,情報・通信業,99990\n"
+        ).encode("cp932")
+        parsed = parse_edinet_codelist_csv(sample_csv)
+        self.assertIn("7203", parsed)
+        self.assertNotIn("9999", parsed)
+        self.assertEqual(parsed["7203"]["edinet_code"], "E02144")
+        self.assertAlmostEqual(parsed["7203"]["capital_trillion"], 0.6354, places=4)
 
     def test_parse_ixbrl_zip_and_build_split_bundle(self) -> None:
         master = _build_test_master()

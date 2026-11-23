@@ -19,12 +19,12 @@ import sys
 
 import requests
 
-BASE_URL = "https://disclosure.edinet-fsa.go.jp/api/v2"
+BASE_URL = "https://api.edinet-fsa.go.jp/api/v2"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="EDINET API 接続確認")
-    parser.add_argument("--date", default="2024-05-01", help="書類一覧を取得する日付 (YYYY-MM-DD)")
+    parser.add_argument("--date", default="2025-06-27", help="書類一覧を取得する日付 (YYYY-MM-DD)")
     args = parser.parse_args()
 
     key = os.environ.get("EDINET_API_KEY", "").strip()
@@ -36,8 +36,7 @@ def main() -> int:
     try:
         resp = requests.get(
             f"{BASE_URL}/documents.json",
-            params={"date": args.date, "type": 2},
-            headers={"Subscription-Key": key},
+            params={"date": args.date, "type": 2, "Subscription-Key": key},
             timeout=30,
         )
     except requests.RequestException as exc:

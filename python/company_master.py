@@ -203,14 +203,37 @@ def _normalize_market(raw: str) -> str:
     return ""
 
 
+JPX_INDEX_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/01.html"
+
+
+def _discover_jpx_excel_url(timeout: int = 30) -> str | None:
+    """JPX一覧ページから最新の data_j.xls / .xlsx URL を探索する（廃止・移転時は None）。"""
+    try:
+        resp = requests.get(JPX_INDEX_URL, timeout=timeout, headers={"User-Agent": "Git_stock_networkmap/1.0"})
+        if resp.status_code != 200:
+            return None
+        m = re.search(r'href="([^"]+\.xlsx?)"', resp.text, flags=re.IGNORECASE)
+        if not m:
+            return None
+        href = m.group(1)
+        if href.startswith("http"):
+            return href
+        if href.startswith("/"):
+            return f"https://www.jpx.co.jp{href}"
+        return f"https://www.jpx.co.jp/markets/statistics-equities/misc/{href}"
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def fetch_jpx_master(timeout: int = 60) -> dict[str, CompanyRecord]:
-    """JPX公式の上場銘柄一覧（data_j.xls）を取得して CompanyRecord 辞書を返す。"""
+    """JPX公式の上場銘柄一覧（取得可能な場合のみ）を読み込んで CompanyRecord 辞書を返す。"""
     try:
         import xlrd  # type: ignore
-    except ImportError as exc:
-        raise RuntimeError("JPX一覧の読み込みには xlrd が必要です: pip install xlrd") from exc
+    except ImportError:
+        return {}
 
-    resp = requests.get(JPX_LIST_URL, timeout=timeout, headers={"User-Agent": "Git_stock_networkmap/1.0"})
+    url = _discover_jpx_excel_url(timeout=min(30, timeout)) or JPX_LIST_URL
+    resp = requests.get(url, timeout=timeout, headers={"User-Agent": "Git_stock_networkmap/1.0"})
     resp.raise_for_status()
 
     wb = xlrd.open_workbook(file_contents=resp.content)
@@ -237,7 +260,6 @@ def fetch_jpx_master(timeout: int = 60) -> dict[str, CompanyRecord]:
     records: dict[str, CompanyRecord] = {}
     for r in range(1, sheet.nrows):
         market_raw = str(sheet.cell_value(r, idx_market)) if idx_market is not None else ""
-        # ETF/REIT/インフラファンド等を除外し内国株式のみ対象にする
         if "内国株式" not in market_raw:
             continue
         market = _normalize_market(market_raw)
@@ -260,19 +282,9 @@ def fetch_jpx_master(timeout: int = 60) -> dict[str, CompanyRecord]:
     return records
 
 
-def fetch_edinet_code_list(timeout: int = 60) -> dict[str, dict]:
-    """EDINET公式コードリスト（Edinetcode.zip）を取得し、証券コード→メタ辞書を返す。"""
-    resp = requests.get(EDINET_CODELIST_URL, timeout=timeout, headers={"User-Agent": "Git_stock_networkmap/1.0"})
-    resp.raise_for_status()
-
+def parse_edinet_codelist_csv(raw_bytes: bytes) -> dict[str, dict]:
+    """EDINETコードリストCSV（CP932）をパースし、上場企業の証券コード→メタ辞書を返す。"""
     result: dict[str, dict] = {}
-    with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
-        csv_names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-        if not csv_names:
-            return result
-        raw_bytes = zf.read(csv_names[0])
-
-    # EDINETコードリストは CP932（Shift_JIS）、1行目がメタヘッダ、2行目がカラム見出し
     text = raw_bytes.decode("cp932", errors="replace")
     lines = text.splitlines()
     header_idx = 0
@@ -283,12 +295,17 @@ def fetch_edinet_code_list(timeout: int = 60) -> dict[str, dict]:
 
     reader = csv.DictReader(lines[header_idx:])
     for row in reader:
+        listing = unicodedata.normalize("NFKC", (row.get("上場区分") or "").strip())
         sec_raw = row.get("証券コード") or row.get("証券ｺｰﾄﾞ") or ""
         code = clean_sec_code(sec_raw)
         if not code:
             continue
+        if listing and (listing != "上場" or "非上場" in listing):
+            continue
+
         edinet_code = (row.get("ＥＤＩＮＥＴコード") or row.get("EDINETコード") or "").strip()
         filer_name = unicodedata.normalize("NFKC", (row.get("提出者名") or "").strip())
+        filer_en = unicodedata.normalize("NFKC", (row.get("提出者名（英字）") or "").strip())
         sector33 = unicodedata.normalize("NFKC", (row.get("提出者業種") or "").strip())
         cap_raw = (row.get("資本金") or "").replace(",", "").strip()
         capital_trillion = 0.0
@@ -299,10 +316,23 @@ def fetch_edinet_code_list(timeout: int = 60) -> dict[str, dict]:
         result[code] = {
             "edinet_code": edinet_code,
             "filer_name": filer_name,
+            "filer_en": filer_en,
             "sector33": sector33,
             "capital_trillion": capital_trillion,
         }
     return result
+
+
+def fetch_edinet_code_list(timeout: int = 60) -> dict[str, dict]:
+    """EDINET公式コードリスト（Edinetcode.zip）を取得し、証券コード→メタ辞書を返す。"""
+    resp = requests.get(EDINET_CODELIST_URL, timeout=timeout, headers={"User-Agent": "Git_stock_networkmap/1.0"})
+    resp.raise_for_status()
+
+    with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+        csv_names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
+        if not csv_names:
+            return {}
+        return parse_edinet_codelist_csv(zf.read(csv_names[0]))
 
 
 def sync_company_master(
@@ -310,23 +340,53 @@ def sync_company_master(
     *,
     alias_overrides_path: Path | None = None,
 ) -> dict[str, CompanyRecord]:
-    """JPX一覧とEDINETコードリストを突合して全上場企業マスタを生成・保存する。"""
-    records = fetch_jpx_master()
+    """EDINETコードリストを正本とし、JPX一覧が取得できれば市場区分を補完して企業マスタを構築する。"""
     edinet_map = fetch_edinet_code_list()
+    jpx_records: dict[str, CompanyRecord] = {}
+    try:
+        jpx_records = fetch_jpx_master()
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"[company_master] JPX一覧の直接取得をスキップし、EDINET公式コードリストのみで構築します: {exc}",
+            file=sys.stderr,
+        )
 
-    for code, meta in edinet_map.items():
-        if code in records:
-            rec = records[code]
-            rec.edinet_code = meta["edinet_code"]
-            if meta["capital_trillion"] > 0:
-                rec.capital_trillion = meta["capital_trillion"]
-            if meta["filer_name"] and meta["filer_name"] != rec.name:
-                if meta["filer_name"] not in rec.aliases:
-                    rec.aliases.append(meta["filer_name"])
-        else:
-            # JPX取得漏れや直近上場等でEDINET側にのみある上場企業も補完可能だが、
-            # 廃止銘柄の混入を防ぐため JPX 側を正本とする
-            continue
+    records: dict[str, CompanyRecord] = {}
+    if jpx_records:
+        records = dict(jpx_records)
+        for code, meta in edinet_map.items():
+            if code in records:
+                rec = records[code]
+                rec.edinet_code = meta["edinet_code"]
+                if meta["capital_trillion"] > 0:
+                    rec.capital_trillion = meta["capital_trillion"]
+                for alias in (meta["filer_name"], meta.get("filer_en", "")):
+                    if alias and alias != rec.name and alias not in rec.aliases:
+                        rec.aliases.append(alias)
+    else:
+        for code, meta in edinet_map.items():
+            name = meta["filer_name"] or code
+            sector33 = meta["sector33"]
+            aliases = []
+            # 「株式会社」を除いた短縮名も別名登録して名寄せ精度を上げる
+            short_name = re.sub(r"^(株式会社|㈱)|((株式会社|㈱))$", "", name).strip()
+            if short_name and short_name != name:
+                aliases.append(name)
+                display_name = short_name
+            else:
+                display_name = name
+            if meta.get("filer_en"):
+                aliases.append(meta["filer_en"])
+            records[code] = CompanyRecord(
+                code=code,
+                name=display_name,
+                sector=map_sector_group(sector33),
+                sector33=sector33,
+                market="",
+                edinet_code=meta["edinet_code"],
+                capital_trillion=meta["capital_trillion"],
+                aliases=aliases,
+            )
 
     if alias_overrides_path and alias_overrides_path.exists():
         overrides = json.loads(alias_overrides_path.read_text(encoding="utf-8"))
