@@ -10,6 +10,7 @@ import type {
   SourceType,
 } from './types'
 import { linkEndId } from './graphUtils'
+import { normalizeSectorName } from './sectorPalette'
 
 // ===== 入力データの正規化（契約スキーマ＋拡張スキーマ＋試作スキーマを受理） =====
 export function normaliseData(raw: unknown): NetworkData {
@@ -23,7 +24,8 @@ export function normaliseData(raw: unknown): NetworkData {
       id: String(n.id ?? code).trim(),
       code,
       name: String(n.name ?? code),
-      sector: String(n.sector ?? 'その他'),
+      sector: normalizeSectorName(String(n.sector ?? 'その他')),
+      subSector: n.subSector ? String(n.subSector).trim() : undefined,
       marketCap: Number(n.marketCap ?? 0),
       capital: Number(n.capital ?? 0),
       logo: String(n.logo ?? `https://logoapi.sh/ticker/${code}.svg`),
@@ -71,6 +73,7 @@ export function buildIndexFromNetwork(data: NetworkData): IndexEntry[] {
     code: n.code,
     name: n.name,
     sector: n.sector,
+    subSector: n.subSector,
     market: n.market,
     marketCap: n.marketCap,
     capital: n.capital,
@@ -153,7 +156,10 @@ export async function loadInitialDataset(config: EmbedConfig): Promise<LoadedDat
   if (coreRaw) {
     try {
       const coreData = normaliseData(coreRaw)
-      const index = Array.isArray(indexRaw) && indexRaw.length > 0 ? indexRaw : buildIndexFromNetwork(coreData)
+      const index =
+        Array.isArray(indexRaw) && indexRaw.length > 0
+          ? indexRaw.map((entry) => ({ ...entry, sector: normalizeSectorName(entry.sector) }))
+          : buildIndexFromNetwork(coreData)
       const meta: DataMeta = metaRaw ?? {
         dataType: 'live',
         nodeCount: index.length,

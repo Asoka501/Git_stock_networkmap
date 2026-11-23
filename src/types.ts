@@ -11,6 +11,8 @@ export interface NetNode extends NodeObject {
   code: string
   name: string
   sector: string
+  /** 中分類（JPX 33業種。ズームイン時の近似色・詳細表示に使用） */
+  subSector?: string
   /** 時価総額（兆円） */
   marketCap: number
   /** 資本金（兆円） */
@@ -71,6 +73,7 @@ export interface IndexEntry {
   code: string
   name: string
   sector: string
+  subSector?: string
   market?: string
   marketCap: number
   capital: number
